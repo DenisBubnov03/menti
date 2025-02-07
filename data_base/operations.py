@@ -112,3 +112,8 @@ def update_student_payment(student_telegram, amount):
 def get_all_students():
     """Возвращает список всех студентов из БД"""
     return session.query(Student).all()
+
+def get_student_chat_id(student_telegram):
+    """Возвращает chat_id студента по его username"""
+    student = session.query(Student).filter(Student.telegram == student_telegram).first()
+    return student.chat_id if student else None

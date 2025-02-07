@@ -4,7 +4,7 @@ from telegram import Update
 from telegram.ext import ConversationHandler
 
 from commands.base_function import back_to_main_menu
-from data_base.operations import update_student_payment, get_student_by_fio_or_telegram
+from data_base.operations import update_student_payment, get_student_by_fio_or_telegram, get_student_chat_id
 
 
 async def confirm_or_reject_payment(update: Update, context):
@@ -15,17 +15,36 @@ async def confirm_or_reject_payment(update: Update, context):
     student_telegram = context.bot_data.get("student_telegram")  # Берём данные из `bot_data`
     payment_text = context.bot_data.get("payment_text")
 
+    print(f"Тг ученика {student_telegram}")
+
     if not student_telegram:
         print("❌ Ошибка: Не найден student_telegram в bot_data!")
         await update.message.reply_text("❌ Ошибка: Не найден студент для этого платежа.")
         return
-
+    student_chat_id = get_student_chat_id(student_telegram)
     if text == "✅ Подтвердить":
         print("✅ Подтверждение платежа!")
+        if student_chat_id:
+            await context.bot.send_message(
+                chat_id=student_chat_id,
+                text=f"✅ Ваш платёж на сумму {payment_text} принят."
+            )
         return await confirm_payment(update, context, student_telegram, payment_text)
+
     elif text == "❌ Отклонить":
         print("❌ Отклонение платежа!")
-        return await reject_payment(update, context, student_telegram)
+
+        # ✅ Ментору отправляем сообщение, что платёж отклонён
+        await update.message.reply_text(f"❌ Платёж {payment_text} отклонён.")
+        # ✅ Можно отправить студенту уведомление (по желанию)
+        if student_chat_id:
+            await context.bot.send_message(
+                chat_id=student_chat_id,
+                text=f"❌ Ваш платёж на сумму {payment_text} не принят. Обратитесь к ментору."
+            )
+
+        return  # ❌ Ничего не пишем в БД
+
 
 
 
