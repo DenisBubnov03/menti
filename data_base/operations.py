@@ -3,6 +3,13 @@ from data_base.models import Student, Mentor, Homework
 from datetime import datetime, timedelta
 from sqlalchemy import or_, func
 
+def is_admin(username):
+    """Проверяет, является ли пользователь админом"""
+    mentor = session.query(Mentor).filter(Mentor.telegram == username).first()
+    if mentor and mentor.is_admin:  # Проверяем поле is_admin
+        return True
+    return False
+
 def is_mentor(telegram):
     mentor = session.query(Mentor).filter(Mentor.telegram == str(telegram)).first()
     return mentor is not None
@@ -100,3 +107,8 @@ def update_student_payment(student_telegram, amount):
     except Exception as e:
         session.rollback()
         raise RuntimeError(f"Ошибка обновления данных студента: {e}")
+
+
+def get_all_students():
+    """Возвращает список всех студентов из БД"""
+    return session.query(Student).all()
