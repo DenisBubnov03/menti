@@ -16,6 +16,7 @@ load_dotenv()
 
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 
+
 def main():
     application = Application.builder().token(TELEGRAM_TOKEN).build()
     homework_handler = ConversationHandler(
@@ -49,7 +50,7 @@ def main():
         states={
             PAYMENT_WAITING: [MessageHandler(filters.ALL, forward_payment)],  # Ожидаем чек и сумму
             PAYMENT_CONFIRMATION: [
-                MessageHandler(filters.Regex("^(✅ Подтвердить|❌ Отклонить)$"), confirm_or_reject_payment)]
+                MessageHandler(filters.Regex("^(✅ Подтвердить платеж|❌ Отклонить платеж)$"), confirm_or_reject_payment)]
         },
         fallbacks=[],
         allow_reentry=True  # ✅ Разрешаем повторный вход в оплату, если студент решит отправить новый чек
@@ -64,15 +65,14 @@ def main():
 
     application.add_handler(broadcast_handler)
 
-
-    application.add_handler(MessageHandler(filters.Regex(r"^(Принять|Отклонить) \d+$"), confirm_or_reject_payment))
-    application.add_handler(MessageHandler(filters.Regex("^(✅ Подтвердить|❌ Отклонить)$"), confirm_or_reject_payment))
+    application.add_handler(MessageHandler(filters.Regex("^(✅ Подтвердить платеж|❌ Отклонить платеж)$"), confirm_or_reject_payment))
 
     application.add_handler(payment_handler)
     application.add_handler(homework_handler)
     application.add_handler(homework_submission_handler)
     application.add_handler(CommandHandler("start", start_command))
     application.run_polling()
+
 
 if __name__ == "__main__":
     main()

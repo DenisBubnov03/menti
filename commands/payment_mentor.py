@@ -22,7 +22,7 @@ async def confirm_or_reject_payment(update: Update, context):
         await update.message.reply_text("❌ Ошибка: Не найден студент для этого платежа.")
         return
     student_chat_id = get_student_chat_id(student_telegram)
-    if text == "✅ Подтвердить":
+    if text == "✅ Подтвердить платеж":
         print("✅ Подтверждение платежа!")
         if student_chat_id:
             await context.bot.send_message(
@@ -31,7 +31,7 @@ async def confirm_or_reject_payment(update: Update, context):
             )
         return await confirm_payment(update, context, student_telegram, payment_text)
 
-    elif text == "❌ Отклонить":
+    elif text == "❌ Отклонить платеж":
         print("❌ Отклонение платежа!")
 
         # ✅ Ментору отправляем сообщение, что платёж отклонён

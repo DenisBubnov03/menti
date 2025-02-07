@@ -35,7 +35,7 @@ async def forward_payment(update: Update, context):
 
     # ✅ Обычные кнопки
     keyboard = ReplyKeyboardMarkup(
-        [["✅ Подтвердить"], ["❌ Отклонить"]],
+        [["✅ Подтвердить платеж"], ["❌ Отклонить платеж"]],
         one_time_keyboard=True,
         resize_keyboard=True
     )
