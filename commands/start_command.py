@@ -19,10 +19,11 @@ async def start_command(update, context):
             keyboard=[
                 [KeyboardButton("📚 Домашние задания")],
                 [KeyboardButton("🎓 Выставление оценки")],
-                [KeyboardButton("📢 Сделать рассылку")],  # ✅ Добавляем рассылку
+                [KeyboardButton("➕ Добавить ментора")],
+                [KeyboardButton("📢 Сделать рассылку")],
+                [KeyboardButton("🗑 Удалить ментора")],
                 [KeyboardButton("📅 Записи на звонки")],
-                [KeyboardButton("📌 Подтверждение сдачи темы")],
-                [KeyboardButton("✉ Уведомления")]
+                [KeyboardButton("📌 Подтверждение сдачи темы")]
             ],
             resize_keyboard=True
         )
@@ -42,7 +43,6 @@ async def start_command(update, context):
                 [KeyboardButton("🎓Выставление оценки")],
                 [KeyboardButton("📅 Записи на звонки")],
                 [KeyboardButton("📌Подтверждение сдачи темы")],
-                [KeyboardButton("✉ Уведомления")]
             ],
             resize_keyboard=True
         )

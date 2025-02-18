@@ -1,6 +1,12 @@
-from telegram.ext import Application, CommandHandler, filters
+import asyncio
+import tracemalloc
 
-from commands.admin_functions import request_broadcast_message, send_broadcast
+from telegram.ext import Application, CommandHandler, filters, CallbackQueryHandler
+
+from commands.call_notifications import run_scheduler
+from commands.call_scheduling import request_call, schedule_call_date, schedule_call_time, handle_direction_choice
+from commands.admin_functions import request_broadcast_message, send_broadcast, add_mentor_request, save_mentor_name, \
+    save_mentor_tg, remove_mentor_request, remove_mentor, WAITING_MENTOR_TG_REMOVE
 from commands.start_command import start_command
 from commands.homework_menti import *
 from commands.homework_mentor import *
@@ -13,11 +19,12 @@ import os
 from dotenv import load_dotenv
 
 load_dotenv()
-
+tracemalloc.start()
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 
 
 def main():
+
     application = Application.builder().token(TELEGRAM_TOKEN).build()
     homework_handler = ConversationHandler(
         entry_points=[MessageHandler(filters.Regex("^📚 Домашние задания$"), homework_list)],
@@ -62,11 +69,39 @@ def main():
         },
         fallbacks=[]
     )
+    mentor_handler = ConversationHandler(
+        entry_points=[MessageHandler(filters.Regex("^➕ Добавить ментора$"), add_mentor_request)],
+        states={
+            WAITING_MENTOR_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, save_mentor_name)],
+            WAITING_MENTOR_TG: [MessageHandler(filters.TEXT & ~filters.COMMAND, save_mentor_tg)]
+        },
+        fallbacks=[]
+    )
+    remove_mentor_handler = ConversationHandler(
+        entry_points=[MessageHandler(filters.Regex("^🗑 Удалить ментора$"), remove_mentor_request)],
+        states={
+            WAITING_MENTOR_TG_REMOVE: [MessageHandler(filters.TEXT & ~filters.COMMAND, remove_mentor)]
+        },
+        fallbacks=[]
+    )
 
+    call_scheduling_handler = ConversationHandler(
+        entry_points=[MessageHandler(filters.Regex("^📅 Записаться на звонок$"), request_call)],
+        states={
+            CALL_SCHEDULE: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_direction_choice)],
+            CALL_SCHEDULE_DATE: [MessageHandler(filters.TEXT & ~filters.COMMAND, schedule_call_date)],
+            CALL_SCHEDULE_TIME: [MessageHandler(filters.TEXT & ~filters.COMMAND, schedule_call_time)],
+            CALL_CONFIRMATION: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, lambda update, context: ConversationHandler.END)],
+        },
+        fallbacks=[MessageHandler(filters.Regex("^Отмена$"), lambda update, context: ConversationHandler.END)]
+    )
+
+    application.add_handler(call_scheduling_handler)
+    application.add_handler(remove_mentor_handler)
+    application.add_handler(mentor_handler)
     application.add_handler(broadcast_handler)
-
     application.add_handler(MessageHandler(filters.Regex("^(✅ Подтвердить платеж|❌ Отклонить платеж)$"), confirm_or_reject_payment))
-
     application.add_handler(payment_handler)
     application.add_handler(homework_handler)
     application.add_handler(homework_submission_handler)

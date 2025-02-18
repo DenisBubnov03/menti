@@ -1,11 +1,11 @@
 from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import MessageHandler, ConversationHandler
 
-from commands.base_function import back_to_main_menu
+from commands.base_function import back_to_main_menu, back_to_main_menu_admin
 from commands.states import HOMEWORK_WAITING
 from data_base.db import session
 from data_base.models import Homework
-from data_base.operations import get_pending_homework, approve_homework, update_homework_status
+from data_base.operations import get_pending_homework, approve_homework, update_homework_status, is_admin
 
 
 async def homework_list(update: Update, context):
@@ -18,7 +18,7 @@ async def homework_list(update: Update, context):
 
     response = "📌 Домашние задания на проверке:\n"
     for hw in homework_list:
-        response += f"🏷 ID: {hw.id}, @{hw.student.telegram} – {hw.module} / {hw.topic}\n"
+        response += f"🏷 ID: {hw.id}, {hw.student.telegram} – {hw.module} / {hw.topic}\n"
 
     response += "\n✏ Введите ID домашнего задания, чтобы проверить."
 
@@ -69,7 +69,12 @@ async def accept_homework(update: Update, context):
     hw_id = context.user_data["homework_id"]
     approve_homework(hw_id)
     await update.message.reply_text(f"✅ Домашка {hw_id} принята!")
-    return await back_to_main_menu(update, context)
+    message = update.message
+    username = str(message.from_user.username)
+    if is_admin(username):
+        return await back_to_main_menu_admin(update, context)
+    else:
+        return await back_to_main_menu(update, context)
 
 
 async def reject_homework(update: Update, context):
@@ -105,8 +110,12 @@ async def save_rejection_comment(update: Update, context):
     await context.bot.send_message(chat_id=student_chat_id, text=message_text)
 
     await update.message.reply_text(f"✅ Отклонение отправлено студенту {homework.student.telegram}.")
-    return await back_to_main_menu(update, context)
-
+    message = update.message
+    username = str(message.from_user.username)
+    if is_admin(username):
+        return await back_to_main_menu_admin(update, context)
+    else:
+        return await back_to_main_menu(update, context)
 
 
 

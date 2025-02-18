@@ -3,7 +3,7 @@ import re
 from telegram import Update
 from telegram.ext import ConversationHandler
 
-from commands.base_function import back_to_main_menu
+from commands.base_function import back_to_main_menu, back_to_main_menu_admin
 from data_base.operations import update_student_payment, get_student_by_fio_or_telegram, get_student_chat_id
 
 
@@ -64,7 +64,7 @@ async def confirm_payment(update: Update, context, student_telegram, payment_tex
     # await context.bot.send_message(chat_id=student_telegram, text=f"✅ Ваш платеж {payment_text} подтверждён!")
 
     await update.message.reply_text(f"✅ Платеж {payment_text} подтверждён.")
-    return await back_to_main_menu(update, context)
+    return await back_to_main_menu_admin(update, context)
 
 
 async def reject_payment(update: Update, context, student):
@@ -79,5 +79,5 @@ async def reject_payment(update: Update, context, student):
     await context.bot.send_message(chat_id=student_telegram, text=f"❌ Ваш платеж {payment_text} не найден. Проверьте чек и повторите попытку.")
 
     await update.message.reply_text(f"❌ Платеж {payment_text} отклонён.")
-    return await back_to_main_menu(update, context)
+    return await back_to_main_menu_admin(update, context)
 

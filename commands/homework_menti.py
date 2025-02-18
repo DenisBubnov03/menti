@@ -3,7 +3,7 @@ from telegram.ext import MessageHandler, ConversationHandler
 from data_base.db import session
 
 from commands.states import HOMEWORK_MODULE, HOMEWORK_TOPIC, HOMEWORK_MENTOR, HOMEWORK_MESSAGE, HOMEWORK_SELECT_TYPE
-from data_base.models import Homework
+from data_base.models import Homework, Student, Mentor
 from data_base.operations import get_pending_homework, approve_homework, \
     get_student_by_fio_or_telegram, get_all_mentors, get_mentor_chat_id
 
@@ -27,109 +27,128 @@ MODULES_TOPICS = {
 
 
 async def submit_homework(update: Update, context):
-    """Начало процесса сдачи домашки с учётом направления"""
-    student_telegram = "@" + update.message.from_user.username
+    """Студент начинает процесс сдачи домашки"""
+    student_telegram = f"@{update.message.from_user.username}"
     student = get_student_by_fio_or_telegram(student_telegram)
 
     if not student:
         await update.message.reply_text("❌ Вы не зарегистрированы как студент!")
         return ConversationHandler.END
 
-    training_type = student.training_type  # Получаем направление
-    print(f'Тип студента {training_type}')
-    if training_type == "Фуллстек":
-        # Если фуллстек — сначала спрашиваем, какое направление
+    context.user_data["student_id"] = student.id
+    context.user_data["training_type"] = student.training_type  # ✅ Сохраняем направление
+
+    # Если студент Фуллстек, даём ему выбор направления
+    if student.training_type == "Фуллстек":
         keyboard = [
             [KeyboardButton("Ручное тестирование")],
             [KeyboardButton("Автотестирование")]
         ]
         await update.message.reply_text(
-            "Выберите направление:",
+            "Выберите направление, по которому сдаёте домашку:",
             reply_markup=ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
         )
         return HOMEWORK_SELECT_TYPE
 
-    # Для manual и automation сразу показываем модули
-    if training_type not in MODULES_TOPICS:
-        await update.message.reply_text("❌ Ошибка! Ваше направление не поддерживается.")
-        return ConversationHandler.END
-
-    keyboard = [[KeyboardButton(mod)] for mod in MODULES_TOPICS[training_type].keys()]
-
+    # Если студент не фуллстек, сразу отправляем его на выбор модуля
+    keyboard = [[KeyboardButton(mod)] for mod in MODULES_TOPICS[student.training_type].keys()]
     await update.message.reply_text(
-        "📚 Выберите модуль:",
+        "📌 Выберите модуль:",
         reply_markup=ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
     )
-    return HOMEWORK_MODULE
+
+    return HOMEWORK_MODULE  # ✅ Теперь студент НЕ выбирает направление после темы!
+
 
 
 async def select_stack_type(update: Update, context):
-    """Фуллстек выбирает направление: manual или automation"""
-    choice = update.message.text
+    """Фуллстек-студент выбирает направление сдачи домашки."""
+    direction_choice = update.message.text.strip()
 
-    if "Ручное тестирование" in choice:
-        context.user_data["training_type"] = "Ручное тестирование"
-    elif "Автотестирование" in choice:
-        context.user_data["training_type"] = "Автотестирование"
+    if direction_choice == "Ручное тестирование":
+        mentor_id = 1
+    elif direction_choice == "Автотестирование":
+        mentor_id = 3
     else:
-        await update.message.reply_text("❌ Ошибка! Выберите 'Ручное тестирование' или 'Автотестирование'.")
+        await update.message.reply_text("❌ Ошибка! Выберите одно из предложенных направлений.")
         return HOMEWORK_SELECT_TYPE
 
-    training_type = context.user_data["training_type"]
-    keyboard = [[KeyboardButton(mod)] for mod in MODULES_TOPICS[training_type].keys()]
+    mentor = session.query(Mentor).filter(Mentor.id == mentor_id).first()
+
+    if not mentor:
+        await update.message.reply_text("❌ Ошибка! Выбранный ментор не найден.")
+        return HOMEWORK_SELECT_TYPE
+
+    context.user_data["mentor_id"] = mentor.id
+    context.user_data["mentor_telegram"] = mentor.telegram
+    context.user_data["training_type"] = direction_choice  # ✅ Сохраняем выбранное направление!
+
+    # ✅ Теперь предлагаем выбрать модуль, а не сразу сдавать домашку
+    keyboard = [[KeyboardButton(mod)] for mod in MODULES_TOPICS[direction_choice].keys()]
 
     await update.message.reply_text(
-        f"📚 Вы выбрали {choice}. Теперь выберите модуль:",
+        f"✅ Вы выбрали направление {direction_choice}. Теперь выберите модуль:",
         reply_markup=ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
     )
-    return HOMEWORK_MODULE
+
+    return HOMEWORK_MODULE  # 📌 Отправляем на выбор модуля!
 
 
 async def choose_topic(update: Update, context):
     """Выбор темы из модуля"""
-    student_telegram = "@" + update.message.from_user.username
-    student = get_student_by_fio_or_telegram(student_telegram)
-
-    if not student:
-        await update.message.reply_text("❌ Вы не зарегистрированы как студент!")
-        return HOMEWORK_MODULE
-
-    # Получаем направление обучения студента
-    training_type = context.user_data.get("training_type", student.training_type)
-
-    if training_type not in MODULES_TOPICS:
-        await update.message.reply_text("❌ Ошибка! Ваше направление не поддерживается.")
-        return HOMEWORK_MODULE
-
     module = update.message.text
     context.user_data["module"] = module  # Запоминаем модуль
 
-    # Теперь ищем модуль ВНУТРИ training_type
-    if module not in MODULES_TOPICS[training_type]:
+    training_type = context.user_data.get("training_type")  # ✅ Берём уже сохранённое направление
+    if not training_type or module not in MODULES_TOPICS.get(training_type, {}):
         await update.message.reply_text("❌ Ошибка! Такого модуля нет. Выберите из списка.")
         return HOMEWORK_MODULE
 
-    topics = MODULES_TOPICS[training_type][module]  # Теперь модули берём правильно
+    topics = MODULES_TOPICS[training_type][module]
     keyboard = [[KeyboardButton(topic)] for topic in topics]
 
     await update.message.reply_text(
         "📌 Выберите тему:",
         reply_markup=ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
     )
-    return HOMEWORK_TOPIC
+
+    return HOMEWORK_TOPIC  # ✅ Больше не спрашиваем направление!
+
+
 
 
 async def choose_mentor(update: Update, context):
-    """Выбор ментора"""
-    context.user_data["topic"] = update.message.text  # Запоминаем тему
-    mentors = get_all_mentors()  # Функция получения списка менторов
-    keyboard = [[KeyboardButton(m.telegram)] for m in mentors]
+    """Определяет ментора для отправки домашки в зависимости от направления обучения."""
+    student_telegram = f"@{update.message.from_user.username}"
+    student = get_student_by_fio_or_telegram(student_telegram)
 
-    await update.message.reply_text(
-        "👨‍🏫 Выберите ментора:",
-        reply_markup=ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
-    )
-    return HOMEWORK_MENTOR
+    if not student:
+        await update.message.reply_text("❌ Вы не зарегистрированы как студент!")
+        return ConversationHandler.END
+
+    context.user_data["topic"] = update.message.text  # Запоминаем тему
+
+    # ✅ Если студент НЕ фуллстэк, используем закреплённого ментора
+    if student.training_type != "Фуллстек":
+        mentor_id = student.mentor_id  # У студента уже есть закрепленный ментор
+    else:
+        # ✅ Если студент Фуллстек, используем выбранного ранее ментора
+        mentor_id = context.user_data.get("mentor_id")
+
+    mentor = session.query(Mentor).filter(Mentor.id == mentor_id).first()
+
+    if not mentor:
+        await update.message.reply_text("❌ Ошибка! Ваш ментор не найден.")
+        return ConversationHandler.END
+
+    context.user_data["mentor_id"] = mentor.id
+    context.user_data["mentor_telegram"] = mentor.telegram
+
+    await update.message.reply_text(f"✅ Ваш ментор: {mentor.telegram}. Теперь отправьте домашнее задание.")
+    return HOMEWORK_MESSAGE
+
+
+
 
 async def wait_for_homework(update: Update, context):
     """Ждём, когда студент отправит сообщение с домашним заданием"""
@@ -138,18 +157,22 @@ async def wait_for_homework(update: Update, context):
     return HOMEWORK_MESSAGE
 
 async def save_and_forward_homework(update: Update, context):
-    """Сохранение домашки и пересылка её ментору"""
-    student_telegram = "@" + update.message.from_user.username
+    """Сохранение и пересылка домашки"""
+    student_telegram = f"@{update.message.from_user.username}"
     student = get_student_by_fio_or_telegram(student_telegram)
 
     if not student:
         await update.message.reply_text("❌ Вы не зарегистрированы как студент!")
         return ConversationHandler.END
 
-    module = context.user_data["module"]
-    topic = context.user_data["topic"]
-    mentor = context.user_data["mentor"]
+    # ✅ Проверяем, есть ли module в context.user_data
+    module = context.user_data.get("module")
+    if not module:
+        await update.message.reply_text("❌ Ошибка! Вы не выбрали модуль.")
+        return HOMEWORK_MODULE
 
+    topic = context.user_data.get("topic")
+    mentor_telegram = context.user_data.get("mentor_telegram")
     # Создаем запись в БД
     new_homework = Homework(
         student_id=student.id,
@@ -160,26 +183,38 @@ async def save_and_forward_homework(update: Update, context):
     session.add(new_homework)
     session.commit()
 
+    # ✅ Получаем chat_id ментора, если он отсутствует в context.user_data
+    mentor_chat_id = context.user_data.get("chat_id")
     # ID домашки
     homework_id = new_homework.id
 
-    # Отправляем ментору уведомление
-    mentor_chat_id = get_mentor_chat_id(mentor)
+    if not mentor_chat_id:
+        mentor = session.query(Mentor).filter(Mentor.telegram == mentor_telegram).first()
+        if mentor:
+            mentor_chat_id = mentor.chat_id
+            context.user_data["chat_id"] = mentor_chat_id  # ✅ Сохраняем `mentor_chat_id`
 
-    message_text = (
-        f"📚 *Ученик {student.fio} прислал домашку по {module} / {topic}*\n"
-        f"🏷 ID: {homework_id}\n"
-        f"✉ Следующее сообщение — сама домашка:"
+    if not mentor_chat_id:
+        await update.message.reply_text("❌ Ошибка! Не найден mentor_chat_id.")
+        return ConversationHandler.END
+
+    # 📝 Сообщение для ментора перед пересылкой
+    await context.bot.send_message(
+        chat_id=mentor_chat_id,
+        text=(
+            f"📚 Ученик {student.fio} прислал домашку по {module} / {topic}\n"
+            f"📜 ID: {homework_id}\n"
+            "✉ Следующее сообщение — сама домашка:"
+        )
     )
 
-    await context.bot.send_message(chat_id=mentor_chat_id, text=message_text, parse_mode="Markdown")
-
-    # Пересылаем сообщение студента ментору
+    # ✅ Пересылаем сообщение студента
     await context.bot.forward_message(
         chat_id=mentor_chat_id,
         from_chat_id=update.message.chat_id,
         message_id=update.message.message_id
     )
+
     keyboard = ReplyKeyboardMarkup(
         keyboard=[
             [KeyboardButton("📅 Записаться на звонок")],

@@ -1,4 +1,4 @@
-from data_base.db import session
+from data_base.db import session, Session
 from data_base.models import Student, Mentor, Homework
 from datetime import datetime, timedelta
 from sqlalchemy import or_, func
@@ -117,3 +117,32 @@ def get_student_chat_id(student_telegram):
     """Возвращает chat_id студента по его username"""
     student = session.query(Student).filter(Student.telegram == student_telegram).first()
     return student.chat_id if student else None
+
+def get_student_id(student_telegram):
+    """Возвращает chat_id студента по его username"""
+    student = session.query(Student).filter(Student.telegram == student_telegram).first()
+    return student.id if student else None
+
+def get_mentor_by_student(student_telegram):
+    """
+    Получает информацию о менторе студента по его Telegram-нику.
+    :param student_telegram: Telegram студента (@username)
+    :return: Объект ментора или None, если не найден.
+    """
+    student = session.query(Student).filter_by(telegram=student_telegram).first()
+
+    if not student or not student.mentor_id:
+        return None  # Если студент не найден или у него нет ментора
+
+    mentor = session.query(Mentor).filter_by(id=student.mentor_id).first()
+    return mentor
+
+def get_student_by_id(student_id: int) -> Student:
+    """
+    Получает студента из базы данных по его ID.
+    :param student_id: ID студента
+    :return: Объект Student или None, если студент не найден
+    """
+    with Session() as session:  # Открываем сессию SQLAlchemy
+        student = session.query(Student).filter_by(id=student_id).first()
+        return student
