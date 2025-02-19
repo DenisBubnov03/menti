@@ -6,7 +6,7 @@ from telegram.ext import Application, CommandHandler, filters, CallbackQueryHand
 from commands.call_notifications import run_scheduler
 from commands.call_scheduling import request_call, schedule_call_date, schedule_call_time, handle_direction_choice
 from commands.admin_functions import request_broadcast_message, send_broadcast, add_mentor_request, save_mentor_name, \
-    save_mentor_tg, remove_mentor_request, remove_mentor, WAITING_MENTOR_TG_REMOVE
+    save_mentor_tg, remove_mentor_request, remove_mentor, WAITING_MENTOR_TG_REMOVE, save_mentor_direction
 from commands.start_command import start_command
 from commands.homework_menti import *
 from commands.homework_mentor import *
@@ -73,9 +73,10 @@ def main():
         entry_points=[MessageHandler(filters.Regex("^➕ Добавить ментора$"), add_mentor_request)],
         states={
             WAITING_MENTOR_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, save_mentor_name)],
-            WAITING_MENTOR_TG: [MessageHandler(filters.TEXT & ~filters.COMMAND, save_mentor_tg)]
+            WAITING_MENTOR_TG_NEW: [MessageHandler(filters.TEXT & ~filters.COMMAND, save_mentor_tg)],
+            WAITING_MENTOR_DIRECTION: [MessageHandler(filters.TEXT & ~filters.COMMAND, save_mentor_direction)]
         },
-        fallbacks=[]
+        fallbacks=[MessageHandler(filters.Regex("^Отмена$"), lambda update, context: ConversationHandler.END)]
     )
     remove_mentor_handler = ConversationHandler(
         entry_points=[MessageHandler(filters.Regex("^🗑 Удалить ментора$"), remove_mentor_request)],

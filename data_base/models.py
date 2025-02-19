@@ -38,7 +38,7 @@ class Mentor(Base):
     full_name = Column(String, nullable=False)
     is_admin = Column(Boolean, default=False)
     chat_id = Column(String, nullable=True)
-
+    direction = Column(String, unique=True, nullable=False)
 class Call(Base):
     __tablename__ = "calls"
 

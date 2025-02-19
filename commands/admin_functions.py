@@ -1,51 +1,72 @@
-from telegram import Update
+from telegram import Update, ReplyKeyboardMarkup
 
-from commands.states import *
+from commands.states import WAITING_MENTOR_NAME, WAITING_MENTOR_TG_NEW, WAITING_MENTOR_DIRECTION, BROADCAST_WAITING, WAITING_MENTOR_TG_REMOVE
 from data_base.db import session
 from data_base.models import Mentor
 from data_base.operations import get_all_students  # Импортируем функцию для получения всех студентов
-from telegram.ext import ConversationHandler
-
-from telegram.ext import ConversationHandler
+from telegram.ext import ConversationHandler, ContextTypes
 
 
-async def add_mentor_request(update: Update, context):
+async def add_mentor_request(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Начинаем процесс добавления ментора."""
     await update.message.reply_text("📝 Введите ФИО нового ментора:")
     return WAITING_MENTOR_NAME
 
 
-async def save_mentor_name(update: Update, context):
+async def save_mentor_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Сохраняем ФИО и запрашиваем Telegram username."""
-    context.user_data["new_mentor_name"] = update.message.text  # ✅ Сохраняем ФИО
+    context.user_data["new_mentor_name"] = update.message.text
     await update.message.reply_text("📌 Теперь введите Telegram username нового ментора (пример: @username):")
-    return WAITING_MENTOR_TG
+    return WAITING_MENTOR_TG_NEW
 
 
-async def save_mentor_tg(update: Update, context):
-    """Сохраняем Telegram username и добавляем ментора в БД."""
+async def save_mentor_tg(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Сохраняем Telegram username и предлагаем выбрать направление."""
     new_mentor_tg = update.message.text.strip()
 
-    # ✅ Проверяем, начинается ли username с "@"
     if not new_mentor_tg.startswith("@"):
         await update.message.reply_text("❌ Ошибка: Telegram username должен начинаться с '@'. Попробуйте ещё раз.")
-        return WAITING_MENTOR_TG
+        return WAITING_MENTOR_TG_NEW  # ✅ Должно совпадать с states.py
+
+    context.user_data["new_mentor_tg"] = new_mentor_tg
+
+    await update.message.reply_text(
+        "💼 Выберите направление ментора:",
+        reply_markup=ReplyKeyboardMarkup([["Ручное тестирование", "Автотестирование"]], one_time_keyboard=True)
+    )
+    return WAITING_MENTOR_DIRECTION  # ✅ Убедись, что это состояние определено в states.py
+
+
+
+async def save_mentor_direction(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Сохраняем направление и добавляем ментора в БД."""
+    direction = update.message.text.strip()
+
+    if direction not in ["Ручное тестирование", "Автотестирование"]:
+        await update.message.reply_text("❌ Ошибка: выберите одно из направлений: Ручное тестирование или Автотестирование.")
+        return WAITING_MENTOR_DIRECTION
 
     new_mentor_name = context.user_data.get("new_mentor_name")
+    new_mentor_tg = context.user_data.get("new_mentor_tg")
 
-    # ✅ Проверяем, нет ли уже такого ментора в БД
+    # Проверяем, существует ли ментор
     existing_mentor = session.query(Mentor).filter(Mentor.telegram == new_mentor_tg).first()
 
     if existing_mentor:
         await update.message.reply_text(f"⚠ Ментор {new_mentor_tg} уже существует в системе.")
         return ConversationHandler.END
 
-    # ✅ Добавляем нового ментора в БД
-    new_mentor = Mentor(telegram=new_mentor_tg, full_name=new_mentor_name, is_admin=False)
+    # Добавляем ментора в базу данных
+    new_mentor = Mentor(
+        telegram=new_mentor_tg,
+        full_name=new_mentor_name,
+        is_admin=False,
+        direction=direction
+    )
     session.add(new_mentor)
     session.commit()
 
-    await update.message.reply_text(f"✅ Ментор добавлен: {new_mentor_name} - {new_mentor_tg}")
+    await update.message.reply_text(f"✅ Ментор добавлен: {new_mentor_name} - {new_mentor_tg} ({direction})")
     return ConversationHandler.END
 
 
@@ -78,10 +99,6 @@ async def send_broadcast(update, context):
     await update.message.reply_text(f"✅ Сообщение отправлено {sent_count} студентам. Не доставлено: {failed_count}.")
     return ConversationHandler.END
 
-
-from telegram.ext import ConversationHandler
-
-WAITING_MENTOR_TG_REMOVE = range(1)  # Состояние
 
 async def remove_mentor_request(update: Update, context):
     """Запрашивает у админа username ментора для удаления."""
