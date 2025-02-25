@@ -1,5 +1,6 @@
 from telegram import Update, ReplyKeyboardMarkup
 
+from commands.base_function import back_to_main_menu
 from commands.states import WAITING_MENTOR_NAME, WAITING_MENTOR_TG_NEW, WAITING_MENTOR_DIRECTION, BROADCAST_WAITING, WAITING_MENTOR_TG_REMOVE
 from data_base.db import session
 from data_base.models import Mentor
@@ -67,7 +68,7 @@ async def save_mentor_direction(update: Update, context: ContextTypes.DEFAULT_TY
     session.commit()
 
     await update.message.reply_text(f"✅ Ментор добавлен: {new_mentor_name} - {new_mentor_tg} ({direction})")
-    return ConversationHandler.END
+    return await back_to_main_menu(update, context)
 
 
 async def request_broadcast_message(update, context):
