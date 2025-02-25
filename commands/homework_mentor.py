@@ -1,7 +1,7 @@
 from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import MessageHandler, ConversationHandler
 
-from commands.base_function import back_to_main_menu, back_to_main_menu_admin
+from commands.base_function import back_to_main_menu, back_to_main_menu
 from commands.states import HOMEWORK_WAITING
 from data_base.db import session
 from data_base.models import Homework
@@ -66,15 +66,26 @@ async def check_homework(update: Update, context):
 
 async def accept_homework(update: Update, context):
     """Ментор принимает домашку"""
+    comment = update.message.text
     hw_id = context.user_data["homework_id"]
-    approve_homework(hw_id)
+    # Получаем данные студента
+    homework = session.query(Homework).filter(Homework.id == hw_id).first()
     await update.message.reply_text(f"✅ Домашка {hw_id} принята!")
     message = update.message
     username = str(message.from_user.username)
-    if is_admin(username):
-        return await back_to_main_menu_admin(update, context)
-    else:
-        return await back_to_main_menu(update, context)
+    student_chat_id = homework.student.chat_id  # 👈 Получаем числовой `chat_id`
+    module = context.user_data.get("module", "Неизвестный модуль")
+    topic = context.user_data.get("topic", "Неизвестная тема")
+
+    message_text = (
+        f"✅ Домашка по модулю {module} "
+        f"тема {topic} принята."
+    )
+
+    # Отправляем студенту уведомление через `chat_id`
+    await context.bot.send_message(chat_id=student_chat_id, text=message_text)
+
+    return await back_to_main_menu(update, context)
 
 
 async def reject_homework(update: Update, context):
@@ -112,10 +123,7 @@ async def save_rejection_comment(update: Update, context):
     await update.message.reply_text(f"✅ Отклонение отправлено студенту {homework.student.telegram}.")
     message = update.message
     username = str(message.from_user.username)
-    if is_admin(username):
-        return await back_to_main_menu_admin(update, context)
-    else:
-        return await back_to_main_menu(update, context)
+    return await back_to_main_menu(update, context)
 
 
 

@@ -11,8 +11,6 @@ async def request_payment(update: Update, context):
     return PAYMENT_WAITING
 
 
-from telegram import ReplyKeyboardMarkup, KeyboardButton
-
 async def forward_payment(update: Update, context):
     """Пересылаем чек и сумму ментору"""
     student_telegram = "@" + update.message.from_user.username
@@ -20,13 +18,32 @@ async def forward_payment(update: Update, context):
 
     if message.photo:
         file_id = message.photo[-1].file_id
-        payment_text = message.caption or "Без комментария"
+        payment_text = message.caption
+
+        # ✅ Проверяем, указана ли сумма в подписи к фото
+        if not payment_text or not payment_text.strip().isdigit():
+            await update.message.reply_text("❌ Отправьте фото чека и в подписи укажите сумму (например, '15000').")
+            return PAYMENT_WAITING
+
     elif message.document:
         file_id = message.document.file_id
-        payment_text = message.caption or "Без комментария"
+        payment_text = message.caption
+
+        # ✅ Проверяем, указана ли сумма в подписи к документу
+        if not payment_text or not payment_text.strip().isdigit():
+            await update.message.reply_text(
+                "❌ Отправьте документ с чеком и в подписи укажите сумму (например, '15000').")
+            return PAYMENT_WAITING
+
     elif message.text:
         file_id = None
         payment_text = message.text
+
+        # ✅ Если пользователь отправил только текст — проверяем, это число или нет
+        if not payment_text.strip().isdigit():
+            await update.message.reply_text("❌ Укажите сумму числом (например, '15000').")
+            return PAYMENT_WAITING
+
     else:
         await update.message.reply_text("❌ Отправьте фото, документ или текст с суммой!")
         return PAYMENT_WAITING

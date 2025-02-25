@@ -1,5 +1,7 @@
 from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import MessageHandler, ConversationHandler
+
+from commands.base_function import back_to_main_menu
 from data_base.db import session
 
 from commands.states import HOMEWORK_MODULE, HOMEWORK_TOPIC, HOMEWORK_MENTOR, HOMEWORK_MESSAGE, HOMEWORK_SELECT_TYPE
@@ -9,21 +11,22 @@ from data_base.operations import get_pending_homework, approve_homework, \
 
 MODULES_TOPICS = {
     "Ручное тестирование": {
-        "Модуль 1": ["Тема 1.3", "Тема 1.4"],
-        "Модуль 2": ["Тема 2.1", "Тема 2.2", "Тема 2.3", "Тема 2.4", "Тема 2.5"],
-        "Модуль 3": ["Тема 3.1", "Тема 3.2"],
-        "Модуль 4": ["Тема 4.1", "Тема 4.2", "Тема 4.3"],
-        "Модуль 5": ["Резюме/Легенда"]
+        "Модуль 1": ["Тема 1.3", "Тема 1.4", 'Отмена'],
+        "Модуль 2": ["Тема 2.1", "Тема 2.2", "Тема 2.3", "Тема 2.4", "Тема 2.5", 'Отмена'],
+        "Модуль 3": ["Тема 3.1", "Тема 3.2", 'Отмена'],
+        "Модуль 4": ["Тема 4.1", "Тема 4.2", "Тема 4.3", 'Отмена'],
+        "Модуль 5": ["Резюме/Легенда, 'Отмена'"],
+        "Отмена": []
     },
     "Автотестирование": {
-        "Модуль 1": ["Тема 1.1", "Тема 1.2", "Тема 1.3"],
-        "Модуль 2": ["Тема 2.1", "Тема 2.2", "Тема 2.3", "Тема 2.4", "Тема 2.5", "Тема 2.6", "Тема 2.7", "Экзамен 2"],
-        "Модуль 3": ["Тема 3.1", "Тема 3.2", "Тема 3.3", "Тема 3.4", "Тема 3.5", "Тема 3.6", "Экзамен 3"],
-        "Модуль 4": ["Тема 4.1", "Тема 4.2", "Тема 4.3", "Тема 4.4", "Тема 4.5", "Экзамен 4"],
-        "Модуль 5": ["Тема 5.1", "Тема 5.2", "Тема 5.3", "Тема 5.4", "Тема 5.5", "Тема 5.6", "Экзамен 5"]
+        "Модуль 1": ["Тема 1.1", "Тема 1.2", "Тема 1.3", 'Отмена'],
+        "Модуль 2": ["Тема 2.1", "Тема 2.2", "Тема 2.3", "Тема 2.4", "Тема 2.5", "Тема 2.6", "Тема 2.7", "Экзамен 2", 'Отмена'],
+        "Модуль 3": ["Тема 3.1", "Тема 3.2", "Тема 3.3", "Тема 3.4", "Тема 3.5", "Тема 3.6", "Экзамен 3", 'Отмена'],
+        "Модуль 4": ["Тема 4.1", "Тема 4.2", "Тема 4.3", "Тема 4.4", "Тема 4.5", "Экзамен 4", 'Отмена'],
+        "Модуль 5": ["Тема 5.1", "Тема 5.2", "Тема 5.3", "Тема 5.4", "Тема 5.5", "Тема 5.6", "Экзамен 5", 'Отмена'],
+        "Отмена": []
     }
 }
-
 
 
 async def submit_homework(update: Update, context):
@@ -64,7 +67,10 @@ async def submit_homework(update: Update, context):
 async def select_stack_type(update: Update, context):
     """Фуллстек-студент выбирает направление сдачи домашки."""
     direction_choice = update.message.text.strip()
-
+    date_text = update.message.text.strip()
+    if date_text.lower() == "отмена":
+        await back_to_main_menu(update, context)  # Возврат в меню
+        return ConversationHandler.END
     if direction_choice == "Ручное тестирование":
         mentor_id = 1
     elif direction_choice == "Автотестирование":
@@ -98,7 +104,10 @@ async def choose_topic(update: Update, context):
     """Выбор темы из модуля"""
     module = update.message.text
     context.user_data["module"] = module  # Запоминаем модуль
-
+    date_text = update.message.text.strip()
+    if date_text.lower() == "отмена":
+        await back_to_main_menu(update, context)  # Возврат в меню
+        return ConversationHandler.END
     training_type = context.user_data.get("training_type")  # ✅ Берём уже сохранённое направление
     if not training_type or module not in MODULES_TOPICS.get(training_type, {}):
         await update.message.reply_text("❌ Ошибка! Такого модуля нет. Выберите из списка.")
@@ -121,7 +130,10 @@ async def choose_mentor(update: Update, context):
     """Определяет ментора для отправки домашки в зависимости от направления обучения."""
     student_telegram = f"@{update.message.from_user.username}"
     student = get_student_by_fio_or_telegram(student_telegram)
-
+    date_text = update.message.text.strip()
+    if date_text.lower() == "отмена":
+        await back_to_main_menu(update, context)  # Возврат в меню
+        return ConversationHandler.END
     if not student:
         await update.message.reply_text("❌ Вы не зарегистрированы как студент!")
         return ConversationHandler.END

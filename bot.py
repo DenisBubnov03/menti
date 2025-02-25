@@ -3,7 +3,7 @@ import tracemalloc
 
 from telegram.ext import Application, CommandHandler, filters, CallbackQueryHandler
 
-from commands.call_notifications import run_scheduler
+from commands.call_notifications import run_scheduler, show_mentor_calls
 from commands.call_scheduling import request_call, schedule_call_date, schedule_call_time, handle_direction_choice
 from commands.admin_functions import request_broadcast_message, send_broadcast, add_mentor_request, save_mentor_name, \
     save_mentor_tg, remove_mentor_request, remove_mentor, WAITING_MENTOR_TG_REMOVE, save_mentor_direction
@@ -11,7 +11,7 @@ from commands.start_command import start_command
 from commands.homework_menti import *
 from commands.homework_mentor import *
 from commands.payment_menti import request_payment, forward_payment
-from commands.payment_mentor import confirm_or_reject_payment
+from commands.payment_mentor import confirm_or_reject_payment, reject_payment
 from commands.states import *
 
 from telegram.ext import MessageHandler, ConversationHandler
@@ -57,7 +57,8 @@ def main():
         states={
             PAYMENT_WAITING: [MessageHandler(filters.ALL, forward_payment)],  # Ожидаем чек и сумму
             PAYMENT_CONFIRMATION: [
-                MessageHandler(filters.Regex("^(✅ Подтвердить платеж|❌ Отклонить платеж)$"), confirm_or_reject_payment)]
+                MessageHandler(filters.Regex("^✅ Подтвердить платеж$"), confirm_or_reject_payment),
+]
         },
         fallbacks=[],
         allow_reentry=True  # ✅ Разрешаем повторный вход в оплату, если студент решит отправить новый чек
@@ -97,12 +98,14 @@ def main():
         },
         fallbacks=[MessageHandler(filters.Regex("^Отмена$"), lambda update, context: ConversationHandler.END)]
     )
+    application.add_handler(MessageHandler(filters.Regex("^📅 Записи на звонки$"), show_mentor_calls))
 
     application.add_handler(call_scheduling_handler)
     application.add_handler(remove_mentor_handler)
     application.add_handler(mentor_handler)
     application.add_handler(broadcast_handler)
-    application.add_handler(MessageHandler(filters.Regex("^(✅ Подтвердить платеж|❌ Отклонить платеж)$"), confirm_or_reject_payment))
+    application.add_handler(MessageHandler(filters.Regex("^(✅ Подтвердить платеж)$"), confirm_or_reject_payment))
+    application.add_handler(MessageHandler(filters.Regex("^(❌ Отклонить платеж)$"), reject_payment))
     application.add_handler(payment_handler)
     application.add_handler(homework_handler)
     application.add_handler(homework_submission_handler)

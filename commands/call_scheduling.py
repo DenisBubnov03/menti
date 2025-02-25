@@ -1,7 +1,7 @@
 from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import ConversationHandler, ContextTypes
 
-from commands.base_function import back_to_main_menu_menti
+from commands.base_function import back_to_main_menu
 from commands.google_calendar import create_event
 from data_base.models import Student, Mentor
 from data_base.db import session
@@ -34,7 +34,10 @@ async def request_call(update: Update, context):
         return CALL_SCHEDULE  # Используем твое состояние
 
     # Если студент НЕ фуллстек, переходим сразу к выбору даты
-    await update.message.reply_text("Введите дату созвона (в формате ДД.ММ.ГГГГ):")
+    await update.message.reply_text(
+        "Введите дату созвона (в формате ДД.ММ.ГГГГ) или нажмите 'Сегодня':",
+        reply_markup=ReplyKeyboardMarkup([["Сегодня"], ["Отмена"]], one_time_keyboard=True)
+    )
     return CALL_SCHEDULE_DATE  # Используем твое состояние
 
 
@@ -77,13 +80,18 @@ async def schedule_call_date(update: Update, context):
     if date_text.lower() == "сегодня":
         from datetime import datetime
         date_text = datetime.now().strftime("%d.%m.%Y")
+    if date_text.lower() == "отмена":
+        await back_to_main_menu(update, context)  # Возврат в меню
+        return ConversationHandler.END
 
     try:
         from datetime import datetime
         call_date = datetime.strptime(date_text, "%d.%m.%Y").date()
         context.user_data["call_date"] = call_date.strftime("%d.%m.%Y")
     except ValueError:
-        await update.message.reply_text("❌ Некорректная дата. Введите в формате ДД.ММ.ГГГГ:")
+        await update.message.reply_text("⏰ Введите время звонка в формате ЧЧ:ММ::",
+        reply_markup=ReplyKeyboardMarkup([["Отмена"]], one_time_keyboard=True)
+    )
         return CALL_SCHEDULE_DATE  # Оставляем пользователя на этом шаге
 
     await update.message.reply_text("⏰ Введите время звонка в формате ЧЧ:ММ:")
@@ -98,9 +106,12 @@ async def schedule_call_time(update: Update, context):
     time_text = update.message.text.strip()
     student_telegram = context.user_data.get("student_telegram")
     student = session.query(Student).filter_by(telegram=student_telegram).first()
-
+    date_text = update.message.text.strip()
     if not student:
         await update.message.reply_text("❌ Ошибка: студент не найден.")
+        return ConversationHandler.END
+    if date_text.lower() == "отмена":
+        await back_to_main_menu(update, context)  # Возврат в меню
         return ConversationHandler.END
 
     mentor = session.query(Mentor).filter_by(id=student.mentor_id).first()
@@ -118,5 +129,5 @@ async def schedule_call_time(update: Update, context):
         f"🧑‍🏫 Ваш ментор: {mentor_name} ({mentor_tg})"
     )
 
-    return await back_to_main_menu_menti(update, context)   # Финальный этап
+    return await back_to_main_menu(update, context)   # Финальный этап
 
