@@ -15,7 +15,8 @@ async def back_to_main_menu(update: Update, context):
     username = "@" + update.message.from_user.username if update.message.from_user.username else None
 
     # ✅ Проверяем, является ли пользователь админом-ментором
-    mentor = session.query(Mentor).filter_by(chat_id=user_id).first()
+    mentor = session.query(Mentor).filter(Mentor.chat_id == str(user_id)).first()
+
     if mentor:
         if mentor.is_admin:
             # Меню для админ-ментора

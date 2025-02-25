@@ -1,11 +1,12 @@
+from datetime import datetime
+
 from data_base.db import session, Session
 from data_base.models import Student, Mentor, Homework
-from datetime import datetime, timedelta
-from sqlalchemy import or_, func
+
 
 def is_admin(username):
     """Проверяет, является ли пользователь админом"""
-    mentor = session.query(Mentor).filter(Mentor.telegram == username).first()
+    mentor = session.query(Mentor).filter(Mentor.telegram == str(username)).first()
     if mentor and mentor.is_admin:  # Проверяем поле is_admin
         return True
     return False

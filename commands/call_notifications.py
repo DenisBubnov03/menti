@@ -76,7 +76,8 @@ async def show_mentor_calls(update: Update, context: ContextTypes.DEFAULT_TYPE):
     Отправляет ментору список всех его предстоящих звонков из Google Calendar.
     """
     user_id = update.message.from_user.id
-    mentor = session.query(Mentor).filter_by(chat_id=user_id).first()
+    mentor = session.query(Mentor).filter(Mentor.chat_id == str(user_id)).first()
+
 
     if not mentor:
         await update.message.reply_text("❌ Ошибка: ваш профиль не найден.")
