@@ -4,27 +4,28 @@ from telegram.ext import MessageHandler, ConversationHandler
 from commands.base_function import back_to_main_menu, back_to_main_menu
 from commands.states import HOMEWORK_WAITING
 from data_base.db import session
-from data_base.models import Homework
+from data_base.models import Homework, Mentor
 from data_base.operations import get_pending_homework, approve_homework, update_homework_status, is_admin
 
 
 async def homework_list(update: Update, context):
     """Ментор смотрит список домашних заданий"""
-    homework_list = get_pending_homework("@"+update.message.from_user.username)
+    homework_lists = await get_pending_homework("@" + update.message.from_user.username)
 
-    if not homework_list:
+    if not homework_lists:
         await update.message.reply_text("✅ Нет ожидающих проверку домашних заданий.")
         return ConversationHandler.END
 
     response = "📌 Домашние задания на проверке:\n"
-    for hw in homework_list:
+    for hw in homework_lists:
+        # Подготавливаем информацию о домашке, включая ID студента и модуль
         response += f"🏷 ID: {hw.id}, {hw.student.telegram} – {hw.module} / {hw.topic}\n"
 
     response += "\n✏ Введите ID домашнего задания, чтобы проверить."
 
     # 🔹 Добавляем кнопку "🔙 В главное меню"
     keyboard = ReplyKeyboardMarkup(
-        [[KeyboardButton("🔙 В главное меню")]],
+        [[KeyboardButton("🔙 В главное меню")]],  # Кнопка возвращения в главное меню
         resize_keyboard=True,
         one_time_keyboard=True
     )
@@ -58,10 +59,9 @@ async def check_homework(update: Update, context):
         one_time_keyboard=True
     )
 
-    await update.message.reply_text(f"🏷 ID: {hw_id}\nМодуль: {homework.module}, Тема: {homework.topic}\nВыберите действие:", reply_markup=keyboard)
+    await update.message.reply_text(
+        f"🏷 ID: {hw_id}\nМодуль: {homework.module}, Тема: {homework.topic}\nВыберите действие:", reply_markup=keyboard)
     return "CHECKING"
-
-
 
 
 async def accept_homework(update: Update, context):
@@ -76,7 +76,8 @@ async def accept_homework(update: Update, context):
     student_chat_id = homework.student.chat_id  # 👈 Получаем числовой `chat_id`
     module = context.user_data.get("module", "Неизвестный модуль")
     topic = context.user_data.get("topic", "Неизвестная тема")
-
+    homework.status = "принято"
+    session.commit()
     message_text = (
         f"✅ Домашка по модулю {module} "
         f"тема {topic} принята."
@@ -91,45 +92,39 @@ async def accept_homework(update: Update, context):
 async def reject_homework(update: Update, context):
     """Ментор отклоняет домашку"""
     hw_id = context.user_data["homework_id"]
+    homework = session.query(Homework).filter(Homework.id == hw_id).first()
+    homework.status = "в доработке"
+    session.commit()
     await update.message.reply_text("❌ Введите комментарий, почему отклоняете.")
     return "COMMENT_WAITING"
 
 
 async def save_rejection_comment(update: Update, context):
-    """Сохраняем причину отклонения и обновляем статус домашки"""
-    comment = update.message.text.strip()  # Комментарий от ментора
-    hw_id = context.user_data["homework_id"]  # Получаем ID домашки
+    """Сохраняем причину отклонения и уведомляем студента"""
+    comment = update.message.text
+    hw_id = context.user_data["homework_id"]
 
-    # Получаем домашку из базы данных
+    # Получаем данные студента
     homework = session.query(Homework).filter(Homework.id == hw_id).first()
 
-    if not homework:
-        await update.message.reply_text("❌ Ошибка! Домашка не найдена.")
+    if not homework or not homework.student.chat_id:
+        await update.message.reply_text("⚠ Ошибка! Не удалось найти chat_id студента.")
         return ConversationHandler.END
 
-    # Обновляем статус домашки на "в доработке"
-    homework.status = "в доработке"
-    session.commit()  # Сохраняем изменения в базе данных
+    student_chat_id = homework.student.chat_id  # 👈 Получаем числовой `chat_id`
+    module = context.user_data.get("module", "Неизвестный модуль")
+    topic = context.user_data.get("topic", "Неизвестная тема")
 
-    # Отправляем уведомление студенту
-    student_chat_id = homework.student.chat_id  # Получаем chat_id студента
+    message_text = (
+        f"❌ Домашка по модулю {module} "
+        f"тема {topic} требует доработок.\n"
+        f"💬 Комментарий ментора: {comment}"
+    )
 
-    if not student_chat_id:
-        await update.message.reply_text("❌ Ошибка! У студента нет chat_id.")
-        return ConversationHandler.END
-
-    # Подготовка сообщения
-    message_text = f"❌ Домашка по модулю {homework.module} / {homework.topic} требует доработок.\n💬 Комментарий: {comment}"
-
-    # Отправляем сообщение студенту
+    # Отправляем студенту уведомление через `chat_id`
     await context.bot.send_message(chat_id=student_chat_id, text=message_text)
 
-    # Подтверждаем ментору, что домашка отклонена
-    await update.message.reply_text(f"✅ Домашка отправлена студенту с комментарием: {comment}")
-
-    return await back_to_main_menu(update, context)  # Возвращаем в главное меню
-
-
-
-
-
+    await update.message.reply_text(f"✅ Отклонение отправлено студенту {homework.student.telegram}.")
+    message = update.message
+    username = str(message.from_user.username)
+    return await back_to_main_menu(update, context)

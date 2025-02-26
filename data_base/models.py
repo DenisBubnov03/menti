@@ -62,5 +62,5 @@ class Homework(Base):
     topic = Column(String, nullable=False)
     status = Column(String, default="ожидает проверки")
     created_at = Column(DateTime, default=datetime.utcnow)
-
+    mentor_id = Column(Integer, ForeignKey('mentors.id'))
     student = relationship("Student", backref="homeworks")

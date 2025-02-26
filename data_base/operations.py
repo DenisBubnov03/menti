@@ -26,9 +26,20 @@ def get_student_by_fio_or_telegram(value):
     except Exception as e:
         return None
 
-def get_pending_homework(mentor_username):
-    """Возвращает список домашних заданий, ожидающих проверки"""
-    return session.query(Homework).filter(Homework.status == "ожидает проверки").all()
+async def get_pending_homework(mentor_telegram):
+    """Функция получения списка домашних заданий для конкретного ментора"""
+    mentor = session.query(Mentor).filter(Mentor.telegram == mentor_telegram).first()
+
+    if not mentor:
+        return None
+
+    # Фильтруем домашки по mentor_id и статусу "ожидает проверки"
+    homework_list = session.query(Homework).filter(
+        Homework.mentor_id == mentor.id,
+        Homework.status == "ожидает проверки"
+    ).all()
+
+    return homework_list
 
 def approve_homework(hw_id):
     """Обновляет статус домашки на "принято" в БД"""

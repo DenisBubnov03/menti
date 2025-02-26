@@ -173,7 +173,7 @@ async def save_and_forward_homework(update: Update, context):
     """Сохранение и пересылка домашки"""
     student_telegram = f"@{update.message.from_user.username}"
     student = get_student_by_fio_or_telegram(student_telegram)
-
+    mentor_id = context.user_data.get("mentor_id")
     if not student:
         await update.message.reply_text("❌ Вы не зарегистрированы как студент!")
         return ConversationHandler.END
@@ -189,6 +189,7 @@ async def save_and_forward_homework(update: Update, context):
     # Создаем запись в БД
     new_homework = Homework(
         student_id=student.id,
+        mentor_id=mentor_id,
         module=module,
         topic=topic,
         status="ожидает проверки"
