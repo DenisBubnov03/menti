@@ -96,34 +96,39 @@ async def reject_homework(update: Update, context):
 
 
 async def save_rejection_comment(update: Update, context):
-    """Сохраняем причину отклонения и уведомляем студента"""
-    comment = update.message.text
-    hw_id = context.user_data["homework_id"]
+    """Сохраняем причину отклонения и обновляем статус домашки"""
+    comment = update.message.text.strip()  # Комментарий от ментора
+    hw_id = context.user_data["homework_id"]  # Получаем ID домашки
 
-    # Получаем данные студента
+    # Получаем домашку из базы данных
     homework = session.query(Homework).filter(Homework.id == hw_id).first()
 
-    if not homework or not homework.student.chat_id:
-        await update.message.reply_text("⚠ Ошибка! Не удалось найти chat_id студента.")
+    if not homework:
+        await update.message.reply_text("❌ Ошибка! Домашка не найдена.")
         return ConversationHandler.END
 
-    student_chat_id = homework.student.chat_id  # 👈 Получаем числовой `chat_id`
-    module = context.user_data.get("module", "Неизвестный модуль")
-    topic = context.user_data.get("topic", "Неизвестная тема")
+    # Обновляем статус домашки на "в доработке"
+    homework.status = "в доработке"
+    session.commit()  # Сохраняем изменения в базе данных
 
-    message_text = (
-        f"❌ Домашка по модулю {module} "
-        f"тема {topic} требует доработок.\n"
-        f"💬 Комментарий ментора: {comment}"
-    )
+    # Отправляем уведомление студенту
+    student_chat_id = homework.student.chat_id  # Получаем chat_id студента
 
-    # Отправляем студенту уведомление через `chat_id`
+    if not student_chat_id:
+        await update.message.reply_text("❌ Ошибка! У студента нет chat_id.")
+        return ConversationHandler.END
+
+    # Подготовка сообщения
+    message_text = f"❌ Домашка по модулю {homework.module} / {homework.topic} требует доработок.\n💬 Комментарий: {comment}"
+
+    # Отправляем сообщение студенту
     await context.bot.send_message(chat_id=student_chat_id, text=message_text)
 
-    await update.message.reply_text(f"✅ Отклонение отправлено студенту {homework.student.telegram}.")
-    message = update.message
-    username = str(message.from_user.username)
-    return await back_to_main_menu(update, context)
+    # Подтверждаем ментору, что домашка отклонена
+    await update.message.reply_text(f"✅ Домашка отправлена студенту с комментарием: {comment}")
+
+    return await back_to_main_menu(update, context)  # Возвращаем в главное меню
+
 
 
 
