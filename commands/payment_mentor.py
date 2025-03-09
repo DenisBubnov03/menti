@@ -14,6 +14,7 @@ async def confirm_or_reject_payment(update: Update, context):
 
     student_telegram = context.bot_data.get("student_telegram")
     payment_text = context.bot_data.get("payment_text")
+    mentor_telegram = "@" + update.message.from_user.username  # Получаем Telegram ник ментора
 
     if not student_telegram:
         await update.message.reply_text("⚠ Ошибка! Не найден студент.")
@@ -24,9 +25,16 @@ async def confirm_or_reject_payment(update: Update, context):
     if not student or not student.chat_id:
         await update.message.reply_text("⚠ Ошибка! Не удалось найти chat_id студента.")
         return ConversationHandler.END
+    try:
+        amount = float(payment_text)  # Преобразуем сумму в число
+        if amount <= 0:
+            raise ValueError("❌ Ошибка! Сумма должна быть больше 0.")
+    except ValueError:
+        await update.message.reply_text("❌ Ошибка! Введите корректную сумму (например, '15000').")
+        return ConversationHandler.END
 
     try:
-        update_student_payment(student_telegram, payment_text)
+        update_student_payment(student_telegram, amount, mentor_telegram)
     except RuntimeError as e:
         # ✅ Обработка ошибки превышения стоимости обучения
         error_message = str(e)

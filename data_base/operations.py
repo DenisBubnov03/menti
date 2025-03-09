@@ -1,7 +1,8 @@
 from datetime import datetime
+from decimal import Decimal
 
 from data_base.db import session, Session
-from data_base.models import Student, Mentor, Homework
+from data_base.models import Student, Mentor, Homework, Payment
 
 
 def is_admin(username):
@@ -75,50 +76,54 @@ def get_mentor_chat_id(mentor_username):
 
     return mentor.chat_id
 
-def update_student_payment(student_telegram, amount):
-    """Обновляет сумму оплаты студента, проверяя ограничения"""
+def update_student_payment(student_telegram, amount, mentor_telegram, comment="Оплата обучения"):
+    """Добавляет платеж студента в таблицу payments и обновляет сумму в students"""
+    student = session.query(Student).filter(Student.telegram == student_telegram).first()
+    mentor = session.query(Mentor).filter(Mentor.telegram == mentor_telegram).first()
+
+    if not student:
+        raise ValueError("❌ Ошибка: студент не найден в базе.")
+    if not mentor:
+        raise ValueError("❌ Ошибка: ментор не найден в базе.")
+    if amount <= 0:
+        raise ValueError("❌ Ошибка: сумма платежа должна быть больше 0.")
+
     try:
-        student = session.query(Student).filter(Student.telegram == student_telegram).first()
-        if not student:
-            raise ValueError(f"Студент {student_telegram} не найден!")
+        # ✅ Проверяем текущие оплаты студента (приводим к Decimal)
+        total_paid = session.query(Payment.amount).filter(Payment.student_id == student.id).all()
+        total_paid = sum(Decimal(str(p[0])) for p in total_paid) if total_paid else Decimal("0")
 
-        new_payment = int(amount)
-        if new_payment < 0:
-            raise ValueError("Сумма не может быть отрицательной.")
+        new_total_paid = total_paid + Decimal(str(amount))  # ✅ Приводим к Decimal
 
-        payment_date = datetime.today()
-
-        # Проверяем, был ли платеж в этом же месяце
-        # Проверяем, был ли платеж в этом месяце
-        if student.extra_payment_date and student.extra_payment_date.strftime("%m.%Y") == payment_date.strftime(
-                "%m.%Y"):
-            # 🔹 Если уже был платёж в этом месяце → увеличиваем сумму и обновляем дату
-            student.extra_payment_amount += new_payment
-            student.extra_payment_date = payment_date  # 🔥 Теперь дата тоже обновляется!
-        else:
-            # 🔹 Если это первый платёж в новом месяце → записываем сумму и дату
-            student.extra_payment_amount = new_payment
-            student.extra_payment_date = payment_date
-
-        # Обновляем общую сумму оплат
-        updated_payment = (student.payment_amount or 0) + new_payment
-
-        # Проверяем, не превышает ли оплата стоимость курса
-        if updated_payment > (student.total_cost or 0):
-            session.rollback()
+        # ❌ Ошибка, если платеж превышает `total_cost`
+        if new_total_paid > student.total_cost:
             raise ValueError(
-                f"Ошибка: общая сумма оплаты ({updated_payment:.2f} руб.) "
-                f"превышает стоимость обучения ({student.total_cost:.2f} руб.)."
+                f"❌ Ошибка: сумма всех платежей ({new_total_paid} руб.) "
+                f"превышает стоимость обучения ({student.total_cost} руб.)."
             )
 
-        student.payment_amount = updated_payment
-        student.fully_paid = "Да" if student.payment_amount >= student.total_cost else "Нет"
+        # ✅ Создаем новый платеж
+        new_payment = Payment(
+            student_id=student.id,
+            mentor_id=mentor.id,
+            amount=Decimal(str(amount)),  # ✅ Приводим float к Decimal
+            payment_date=datetime.now().date(),
+            comment=comment
+        )
+        session.add(new_payment)
+
+        # ✅ Обновляем `payment_amount` в `students`
+        student.payment_amount = new_total_paid
+
+        # ✅ Проверяем, полностью ли оплачен курс
+        student.fully_paid = "Да" if new_total_paid >= student.total_cost else "Нет"
 
         session.commit()
-        return True
+        print(f"✅ DEBUG: Платёж {amount} руб. записан в payments!")
     except Exception as e:
         session.rollback()
-        raise RuntimeError(f"Ошибка обновления данных студента: {e}")
+        print(f"❌ DEBUG: Ошибка при записи платежа: {e}")
+        raise
 
 
 def get_all_students():

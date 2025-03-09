@@ -14,7 +14,6 @@ from commands.payment_menti import request_payment, forward_payment
 from commands.payment_mentor import confirm_or_reject_payment, reject_payment
 from commands.states import *
 
-from telegram.ext import MessageHandler, ConversationHandler
 import os
 from dotenv import load_dotenv
 
