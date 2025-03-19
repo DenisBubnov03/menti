@@ -76,7 +76,7 @@ def get_mentor_chat_id(mentor_username):
 
     return mentor.chat_id
 
-def update_student_payment(student_telegram, amount, mentor_telegram, comment="Оплата обучения"):
+def update_student_payment(student_telegram, amount, mentor_telegram, comment="Доплата"):
     """Добавляет платеж студента в таблицу payments и обновляет сумму в students"""
     student = session.query(Student).filter(Student.telegram == student_telegram).first()
     mentor = session.query(Mentor).filter(Mentor.telegram == mentor_telegram).first()
