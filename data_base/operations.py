@@ -76,10 +76,10 @@ def get_mentor_chat_id(mentor_username):
 
     return mentor.chat_id
 
-def update_student_payment(student_telegram, amount, mentor_telegram, comment="Доплата"):
+def update_student_payment(student_id, amount, mentor_id, comment="Доплата"):
     """Добавляет платеж студента в таблицу payments и обновляет сумму в students"""
-    student = session.query(Student).filter(Student.telegram == student_telegram).first()
-    mentor = session.query(Mentor).filter(Mentor.telegram == mentor_telegram).first()
+    student = session.query(Student).filter(Student.id == student_id).first()
+    mentor = session.query(Mentor).filter(Mentor.id == mentor_id).first()
 
     if not student:
         raise ValueError("❌ Ошибка: студент не найден в базе.")
@@ -89,33 +89,30 @@ def update_student_payment(student_telegram, amount, mentor_telegram, comment="�
         raise ValueError("❌ Ошибка: сумма платежа должна быть больше 0.")
 
     try:
-        # ✅ Проверяем текущие оплаты студента (приводим к Decimal)
-        total_paid = session.query(Payment.amount).filter(Payment.student_id == student.id).all()
-        total_paid = sum(Decimal(str(p[0])) for p in total_paid) if total_paid else Decimal("0")
-
-        new_total_paid = total_paid + Decimal(str(amount))  # ✅ Приводим к Decimal
-
-        # ❌ Ошибка, если платеж превышает `total_cost`
-        if new_total_paid > student.total_cost:
-            raise ValueError(
-                f"❌ Ошибка: сумма всех платежей ({new_total_paid} руб.) "
-                f"превышает стоимость обучения ({student.total_cost} руб.)."
-            )
+        current_paid = Decimal(student.payment_amount or 0)
+        new_total_paid = current_paid + Decimal(str(amount))
+        #
+        # # ❌ Проверяем превышение стоимости
+        # if new_total_paid > student.total_cost:
+        #     raise ValueError(
+        #         f"❌ Ошибка: сумма всех платежей ({new_total_paid} руб.) "
+        #         f"превышает стоимость обучения ({student.total_cost} руб.)."
+        #     )
 
         # ✅ Создаем новый платеж
         new_payment = Payment(
             student_id=student.id,
             mentor_id=mentor.id,
-            amount=Decimal(str(amount)),  # ✅ Приводим float к Decimal
+            amount=Decimal(str(amount)),
             payment_date=datetime.now().date(),
             comment=comment
         )
         session.add(new_payment)
 
-        # ✅ Обновляем `payment_amount` в `students`
+        # ✅ Обновляем `payment_amount`
         student.payment_amount = new_total_paid
 
-        # ✅ Проверяем, полностью ли оплачен курс
+        # ✅ Обновляем статус оплаты
         student.fully_paid = "Да" if new_total_paid >= student.total_cost else "Нет"
 
         session.commit()
@@ -124,6 +121,7 @@ def update_student_payment(student_telegram, amount, mentor_telegram, comment="�
         session.rollback()
         print(f"❌ DEBUG: Ошибка при записи платежа: {e}")
         raise
+
 
 
 def get_all_students():

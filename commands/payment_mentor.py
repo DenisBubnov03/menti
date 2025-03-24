@@ -9,50 +9,50 @@ from data_base.operations import update_student_payment, get_student_by_fio_or_t
 
 
 async def confirm_or_reject_payment(update: Update, context):
-    """Ментор подтверждает или отклоняет платеж."""
-    print("🟢 confirm_or_reject_payment вызван!")  # Для отладки
-
+    """Ментор подтверждает платеж студента и записывает его в базу."""
     student_telegram = context.bot_data.get("student_telegram")
     payment_text = context.bot_data.get("payment_text")
-    mentor_telegram = "@" + update.message.from_user.username  # Получаем Telegram ник ментора
 
-    if not student_telegram:
-        await update.message.reply_text("⚠ Ошибка! Не найден студент.")
+    if not student_telegram or not payment_text:
+        await update.message.reply_text("⚠ Ошибка! Данные платежа не найдены.")
         return ConversationHandler.END
 
-    # ✅ Получаем chat_id студента из БД
+    # Получаем данные студента
     student = session.query(Student).filter(Student.telegram == student_telegram).first()
-    if not student or not student.chat_id:
-        await update.message.reply_text("⚠ Ошибка! Не удалось найти chat_id студента.")
+    if not student:
+        await update.message.reply_text("⚠ Студент не найден.")
         return ConversationHandler.END
-    try:
-        amount = float(payment_text)  # Преобразуем сумму в число
-        if amount <= 0:
-            raise ValueError("❌ Ошибка! Сумма должна быть больше 0.")
-    except ValueError:
-        await update.message.reply_text("❌ Ошибка! Введите корректную сумму (например, '15000').")
+
+    if not student.mentor_id:
+        await update.message.reply_text("⚠ У студента не назначен ментор.")
+        return ConversationHandler.END
+
+    if not student.chat_id:
+        await update.message.reply_text("⚠ У студента не указан chat_id.")
         return ConversationHandler.END
 
     try:
-        update_student_payment(student_telegram, amount, mentor_telegram)
+        amount = float(payment_text)
+    except ValueError:
+        await update.message.reply_text("❌ Ошибка: сумма указана неверно.")
+        return ConversationHandler.END
+
+    try:
+        # Записываем платёж
+        update_student_payment(student.id, amount, student.mentor_id)
     except RuntimeError as e:
-        # ✅ Обработка ошибки превышения стоимости обучения
-        error_message = str(e)
-        if "превышает стоимость обучения" in error_message:
-            await update.message.reply_text(f"⚠ Ошибка! {error_message}")
-            await context.bot.send_message(
-                chat_id=student.chat_id,
-                text="❌ Ваш платёж не принят, так как общая сумма оплаты превышает стоимость обучения. "
-                     "Пожалуйста, уточните сумму и попробуйте снова."
-            )
-        else:
-            await update.message.reply_text(f"⚠ Произошла ошибка: {error_message}")
+        await update.message.reply_text(f"⚠ Произошла ошибка: {e}")
         return await back_to_main_menu(update, context)
 
-    # ✅ Платёж подтверждён — уведомляем студента и ментора
-    await context.bot.send_message(chat_id=student.chat_id, text=f"✅ Ваш платеж {payment_text} подтверждён!")
-    await update.message.reply_text(f"✅ Платеж {payment_text} подтверждён.")
+    # Уведомления
+    await context.bot.send_message(
+        chat_id=student.chat_id,
+        text=f"✅ Ваш платёж на сумму {amount:.2f} руб. подтверждён!"
+    )
+    await update.message.reply_text(f"✅ Платёж на сумму {amount:.2f} руб. записан.")
     return await back_to_main_menu(update, context)
+
+
 
 
 async def reject_payment(update: Update, context):

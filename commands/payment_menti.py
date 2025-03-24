@@ -3,6 +3,8 @@ from telegram.ext import ConversationHandler
 
 from commands.base_function import back_to_main_menu
 from commands.states import PAYMENT_WAITING, PAYMENT_CONFIRMATION
+from data_base.db import session
+from data_base.models import Student
 
 
 async def request_payment(update: Update, context):
@@ -12,67 +14,71 @@ async def request_payment(update: Update, context):
 
 
 async def forward_payment(update: Update, context):
-    """Пересылаем чек и сумму ментору"""
+    """Студент отправляет чек или сумму, и бот сразу проверяет корректность суммы"""
     student_telegram = "@" + update.message.from_user.username
     message = update.message
 
+    file_id = None
+    payment_text = None
+
+    # Получаем текст и файл
     if message.photo:
         file_id = message.photo[-1].file_id
         payment_text = message.caption
-
-        # ✅ Проверяем, указана ли сумма в подписи к фото
-        if not payment_text or not payment_text.strip().isdigit():
-            await update.message.reply_text("❌ Отправьте фото чека и в подписи укажите сумму (например, '15000').")
-            return PAYMENT_WAITING
-
     elif message.document:
         file_id = message.document.file_id
         payment_text = message.caption
-
-        # ✅ Проверяем, указана ли сумма в подписи к документу
-        if not payment_text or not payment_text.strip().isdigit():
-            await update.message.reply_text(
-                "❌ Отправьте документ с чеком и в подписи укажите сумму (например, '15000').")
-            return PAYMENT_WAITING
-
     elif message.text:
-        file_id = None
         payment_text = message.text
 
-        # ✅ Если пользователь отправил только текст — проверяем, это число или нет
-        if not payment_text.strip().isdigit():
-            await update.message.reply_text("❌ Укажите сумму числом (например, '15000').")
-            return PAYMENT_WAITING
-
-    else:
-        await update.message.reply_text("❌ Отправьте фото, документ или текст с суммой!")
+    # Проверка суммы
+    if not payment_text or not payment_text.strip().isdigit():
+        await update.message.reply_text("❌ Укажите сумму числом (например, '15000').")
         return PAYMENT_WAITING
 
-    mentor_chat_id = 1257163820  # Чат ID ментора
+    amount = float(payment_text)
 
-    # ✅ Обычные кнопки
+    # Находим студента в БД
+    student = session.query(Student).filter(Student.telegram == student_telegram).first()
+    if not student:
+        await update.message.reply_text("⚠ Не удалось найти вас в базе. Обратитесь к ментору.")
+        return ConversationHandler.END
+
+    # Проверка переплаты
+    total_paid = student.payment_amount or 0
+    total_cost = student.total_cost or 0
+    if total_paid + amount > total_cost:
+        await update.message.reply_text(
+            f"❌ Ошибка: введённая сумма превышает стоимость обучения.\n"
+            f"💰 Уже оплачено: {total_paid} руб.\n"
+            f"📚 Стоимость курса: {total_cost} руб.\n"
+            f"Введите корректную сумму (не больше {total_cost - total_paid} руб.)"
+        )
+        return PAYMENT_WAITING
+
+    # Отправка ментору
+    mentor_chat_id = 325531224  # TODO: динамический ID
+
     keyboard = ReplyKeyboardMarkup(
         [["✅ Подтвердить платеж"], ["❌ Отклонить платеж"]],
         one_time_keyboard=True,
         resize_keyboard=True
     )
 
-    sent_message = await context.bot.send_message(
+    await context.bot.send_message(
         chat_id=mentor_chat_id,
-        text=f"📩 Студент {student_telegram} отправил платеж {payment_text}.",
+        text=f"📩 Студент {student_telegram} отправил платёж на сумму {amount:.2f} руб.",
         reply_markup=keyboard
     )
 
     if file_id:
         await context.bot.send_photo(chat_id=mentor_chat_id, photo=file_id, caption=f"📩 Чек от {student_telegram}")
 
-    # ✅ Сохраняем данные в `context.bot_data`
     context.bot_data["student_telegram"] = student_telegram
-    context.bot_data["payment_text"] = payment_text
+    context.bot_data["payment_text"] = str(amount)
 
-    print(f"📩 context.bot_data перед завершением: {context.bot_data}")
+    await update.message.reply_text("✅ Запрос на оплату отправлен ментору.")
+    return ConversationHandler.END
 
-    await update.message.reply_text("✅ Запрос на оплату отправлен. Теперь вы можете использовать другие функции.")
 
-    return ConversationHandler.END  # ✅ Завершаем обработчик, студент может выполнять другие команды
 
