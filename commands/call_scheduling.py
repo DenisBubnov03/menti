@@ -89,12 +89,12 @@ async def schedule_call_date(update: Update, context):
         call_date = datetime.strptime(date_text, "%d.%m.%Y").date()
         context.user_data["call_date"] = call_date.strftime("%d.%m.%Y")
     except ValueError:
-        await update.message.reply_text("⏰ Введите время звонка в формате ЧЧ:ММ::",
+        await update.message.reply_text("⏰ Введите время звонка по часовому поясу МСК в формате ЧЧ:ММ::",
         reply_markup=ReplyKeyboardMarkup([["Отмена"]], one_time_keyboard=True)
     )
         return CALL_SCHEDULE_DATE  # Оставляем пользователя на этом шаге
 
-    await update.message.reply_text("⏰ Введите время звонка в формате ЧЧ:ММ:")
+    await update.message.reply_text("⏰ Введите время звонка по часовому поясу МСК в формате ЧЧ:ММ:")
     return CALL_SCHEDULE_TIME  # Используем твое состояние
 
 
