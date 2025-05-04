@@ -4,7 +4,16 @@ from telegram.ext import ConversationHandler
 from commands.base_function import back_to_main_menu
 from commands.states import PAYMENT_WAITING, PAYMENT_CONFIRMATION
 from data_base.db import session
-from data_base.models import Student
+from data_base.models import Student, Payment
+
+from telegram import Update
+from telegram.ext import ConversationHandler
+from datetime import datetime
+from decimal import Decimal
+from data_base.models import Payment, Student
+from data_base.db import session
+from data_base.operations import get_mentor_by_student
+from commands.states import PAYMENT_WAITING
 
 
 async def request_payment(update: Update, context):
@@ -14,14 +23,13 @@ async def request_payment(update: Update, context):
 
 
 async def forward_payment(update: Update, context):
-    """Студент отправляет чек или сумму, и бот сразу проверяет корректность суммы"""
-    student_telegram = "@" + update.message.from_user.username
+    student_telegram = f"@{update.message.from_user.username}"
     message = update.message
 
     file_id = None
     payment_text = None
 
-    # Получаем текст и файл
+    # Извлекаем сумму и файл (если есть)
     if message.photo:
         file_id = message.photo[-1].file_id
         payment_text = message.caption
@@ -29,24 +37,25 @@ async def forward_payment(update: Update, context):
         file_id = message.document.file_id
         payment_text = message.caption
     elif message.text:
-        payment_text = message.text
+        payment_text = message.text.strip()
 
-    # Проверка суммы
-    if not payment_text or not payment_text.strip().isdigit():
+    if not payment_text or not payment_text.isdigit():
         await update.message.reply_text("❌ Укажите сумму числом (например, '15000').")
         return PAYMENT_WAITING
 
     amount = float(payment_text)
 
-    # Находим студента в БД
+    # Получаем студента и ментора
     student = session.query(Student).filter(Student.telegram == student_telegram).first()
-    if not student:
-        await update.message.reply_text("⚠ Не удалось найти вас в базе. Обратитесь к ментору.")
+    mentor = get_mentor_by_student(student_telegram)
+
+    if not student or not mentor:
+        await update.message.reply_text("⚠ Не удалось найти профиль или ментора.")
         return ConversationHandler.END
 
-    # Проверка переплаты
-    total_paid = student.payment_amount or 0
-    total_cost = student.total_cost or 0
+    total_paid = student.payment_amount or Decimal("0")
+    total_cost = student.total_cost or Decimal("0")
+
     if total_paid + amount > total_cost:
         await update.message.reply_text(
             f"❌ Ошибка: введённая сумма превышает стоимость обучения.\n"
@@ -56,28 +65,41 @@ async def forward_payment(update: Update, context):
         )
         return PAYMENT_WAITING
 
-    # Отправка ментору
-    mentor_chat_id = 325531224  # TODO: динамический ID
+    comment = "Первоначальный платёж при регистрации" if total_paid == 0 else "Доплата"
 
-    keyboard = ReplyKeyboardMarkup(
-        [["✅ Подтвердить платеж"], ["❌ Отклонить платеж"]],
-        one_time_keyboard=True,
-        resize_keyboard=True
+    new_payment = Payment(
+        student_id=student.id,
+        mentor_id=mentor.id,
+        amount=Decimal(str(amount)),
+        payment_date=datetime.now().date(),
+        comment=comment,
+        status="не подтвержден"
     )
+    session.add(new_payment)
+    session.commit()
+
+    # ✅ Уведомление студента
+    await update.message.reply_text("✅ Ваш платёж отправлен на проверку ментору.")
+
+    # ✅ Уведомление ментора
+    mentor_chat_id = 1257163820  # 🔒 Жёстко заданный ID
 
     await context.bot.send_message(
         chat_id=mentor_chat_id,
-        text=f"📩 Студент {student_telegram} отправил платёж на сумму {amount:.2f} руб.",
-        reply_markup=keyboard
+        text=(
+            f"📩 Ученик {student.telegram} отправил платёж на сумму {amount:.2f} руб.\n"
+            f"🆔 ID платежа: {new_payment.id}\n"
+            f"Статус: не подтвержден"
+        )
     )
 
     if file_id:
-        await context.bot.send_photo(chat_id=mentor_chat_id, photo=file_id, caption=f"📩 Чек от {student_telegram}")
+        await context.bot.send_photo(
+            chat_id=mentor.chat_id,
+            photo=file_id,
+            caption=f"🧾 Чек от {student.telegram}"
+        )
 
-    context.bot_data["student_telegram"] = student_telegram
-    context.bot_data["payment_text"] = str(amount)
-
-    await update.message.reply_text("✅ Запрос на оплату отправлен ментору.")
     return ConversationHandler.END
 
 

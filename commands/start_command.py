@@ -17,13 +17,12 @@ async def start_command(update, context):
     if is_admin(username):  # Проверяем, админ ли это
         keyboard = ReplyKeyboardMarkup(
             keyboard=[
+                [KeyboardButton("💰 Платежи")],
                 [KeyboardButton("📚 Домашние задания")],
-                [KeyboardButton("🎓 Выставление оценки (еще не реализовано)")],
                 [KeyboardButton("➕ Добавить ментора")],
                 [KeyboardButton("📢 Сделать рассылку")],
                 [KeyboardButton("🗑 Удалить ментора")],
-                [KeyboardButton("📅 Записи на звонки")],
-                [KeyboardButton("📌 Подтверждение сдачи темы (еще не реализовано)")]
+                [KeyboardButton("📅 Записи на звонки")]
             ],
             resize_keyboard=True
         )
