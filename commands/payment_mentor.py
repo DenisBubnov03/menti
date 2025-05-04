@@ -93,7 +93,7 @@ async def show_pending_payments(update: Update, context: ContextTypes.DEFAULT_TY
         return ConversationHandler.END
 
     # Получаем платежи со статусом "не подтвержден"
-    pending_payments = session.query(Payment).filter_by(mentor_id=mentor.id, status="не подтвержден").all()
+    pending_payments = session.query(Payment).filter_by(status="не подтвержден").all()
 
     if not pending_payments:
         await update.message.reply_text("✅ У вас нет неподтверждённых платежей.")
