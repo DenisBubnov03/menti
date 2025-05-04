@@ -116,7 +116,11 @@ async def show_pending_payments(update: Update, context: ContextTypes.DEFAULT_TY
 
 
 async def check_payment_by_id(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
     payment_id = update.message.text.strip()
+
+    if payment_id.lower() in ["в главное меню", "🔙 в главное меню"]:
+        return await back_to_main_menu(update, context)
 
     if not payment_id.isdigit():
         await update.message.reply_text("❌ Введите корректный ID платежа (число).")
