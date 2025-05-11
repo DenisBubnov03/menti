@@ -216,7 +216,7 @@ async def save_and_forward_homework(update: Update, context):
     await context.bot.send_message(
         chat_id=mentor_chat_id,
         text=(
-            f"📚 Ученик {student.fio} прислал домашку по {module} / {topic}\n"
+            f"📚 Ученик {student.fio} {student.telegram} прислал домашку по {module} / {topic}\n"
             f"📜 ID: {homework_id}\n"
             "✉ Следующее сообщение — сама домашка:"
         )
