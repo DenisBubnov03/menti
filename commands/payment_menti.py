@@ -95,7 +95,7 @@ async def forward_payment(update: Update, context):
 
     if file_id:
         await context.bot.send_photo(
-            chat_id=mentor.chat_id,
+            chat_id=mentor.mentor_chat_id,
             photo=file_id,
             caption=f"🧾 Чек от {student.telegram}"
         )
