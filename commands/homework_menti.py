@@ -4,10 +4,11 @@ from telegram.ext import MessageHandler, ConversationHandler
 from commands.base_function import back_to_main_menu
 from data_base.db import session
 
-from commands.states import HOMEWORK_MODULE, HOMEWORK_TOPIC, HOMEWORK_MENTOR, HOMEWORK_MESSAGE, HOMEWORK_SELECT_TYPE
+from commands.states import HOMEWORK_MODULE, HOMEWORK_TOPIC, HOMEWORK_MENTOR, HOMEWORK_MESSAGE, HOMEWORK_SELECT_TYPE, \
+    CALL_SCHEDULE
 from data_base.models import Homework, Student, Mentor
 from data_base.operations import get_pending_homework, approve_homework, \
-    get_student_by_fio_or_telegram, get_all_mentors, get_mentor_chat_id
+    get_student_by_fio_or_telegram, get_all_mentors, get_mentor_chat_id, get_mentor_by_direction
 
 MODULES_TOPICS = {
     "Ручное тестирование": {
@@ -75,7 +76,12 @@ async def select_stack_type(update: Update, context):
     if direction_choice == "Ручное тестирование":
         mentor_id = 1
     elif direction_choice == "Автотестирование":
-        mentor_id = 3
+        mentor = get_mentor_by_direction("Автотестирование")
+        if not mentor:
+            await update.message.reply_text("❌ Ментор по автотестированию не найден.")
+            return CALL_SCHEDULE
+
+        mentor_id = mentor.id
     else:
         await update.message.reply_text("❌ Ошибка! Выберите одно из предложенных направлений.")
         return HOMEWORK_SELECT_TYPE

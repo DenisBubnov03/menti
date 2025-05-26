@@ -161,3 +161,9 @@ def get_student_by_id(student_id: int) -> Student:
     with Session() as session:  # Открываем сессию SQLAlchemy
         student = session.query(Student).filter_by(id=student_id).first()
         return student
+
+def get_mentor_by_direction(direction: str):
+    """
+    Возвращает ментора по направлению (например, 'Автотестирование').
+    """
+    return session.query(Mentor).filter_by(direction=direction).first()

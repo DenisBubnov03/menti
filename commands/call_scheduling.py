@@ -6,6 +6,7 @@ from commands.google_calendar import create_event
 from data_base.models import Student, Mentor
 from data_base.db import session
 from commands.states import CALL_SCHEDULE_DATE, CALL_SCHEDULE_TIME, CALL_CONFIRMATION, CALL_SCHEDULE
+from data_base.operations import get_mentor_by_direction
 
 
 async def request_call(update: Update, context):
@@ -51,7 +52,12 @@ async def handle_direction_choice(update: Update, context: ContextTypes.DEFAULT_
     if direction == "Ручное тестирование":
         mentor_id = 1
     elif direction == "Автотестирование":
-        mentor_id = 3
+        mentor = get_mentor_by_direction("Автотестирование")
+        if not mentor:
+            await update.message.reply_text("❌ Ментор по автотестированию не найден.")
+            return CALL_SCHEDULE
+
+        mentor_id = mentor.id
     else:
         await update.message.reply_text("❌ Некорректный выбор, попробуйте снова.")
         return CALL_SCHEDULE  # Повторный выбор направления
