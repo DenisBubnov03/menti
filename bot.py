@@ -10,7 +10,8 @@ from commands.admin_functions import request_broadcast_message, send_broadcast, 
 from commands.start_command import start_command
 from commands.homework_menti import *
 from commands.homework_mentor import *
-from commands.payment_menti import request_payment, forward_payment
+from commands.payment_menti import request_payment, forward_payment, request_commission_payment, \
+    forward_commission_payment
 from commands.payment_mentor import reject_payment, show_pending_payments, check_payment_by_id, confirm_payment
 from commands.states import *
 
@@ -108,15 +109,23 @@ def main():
         fallbacks=[],
         allow_reentry=True
     )
+    commission_handler = ConversationHandler(
+        entry_points=[MessageHandler(filters.Regex("^💸 Выплата комиссии$"), request_commission_payment)],
+        states={
+            PAYMENT_WAITING: [MessageHandler(filters.ALL, forward_commission_payment)],
+        },
+        fallbacks=[],
+        allow_reentry=True
+    )
+    application.add_handler(commission_handler)
+
     application.add_handler(payment_review_handler)
     application.add_handler(MessageHandler(filters.Regex("^📅 Записи на звонки$"), show_mentor_calls))
-    # application.add_handler(MessageHandler(filters.Regex("^💰 Платежи$"), show_pending_payments))
+    application.add_handler(MessageHandler(filters.Regex("^💸 Выплата комиссии$"), request_commission_payment))
     application.add_handler(call_scheduling_handler)
     application.add_handler(remove_mentor_handler)
     application.add_handler(mentor_handler)
     application.add_handler(broadcast_handler)
-    # application.add_handler(MessageHandler(filters.Regex("^(✅ Подтвердить платеж)$"), confirm_or_reject_payment))
-    # application.add_handler(MessageHandler(filters.Regex("^(❌ Отклонить платеж)$"), reject_payment))
     application.add_handler(payment_handler)
     application.add_handler(homework_handler)
     application.add_handler(homework_submission_handler)

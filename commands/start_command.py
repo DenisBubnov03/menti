@@ -39,7 +39,6 @@ async def start_command(update, context):
         keyboard = ReplyKeyboardMarkup(
             keyboard=[
                 [KeyboardButton("📚 Домашние задания")],
-                [KeyboardButton("🎓Выставление оценки (еще не реализовано)")],
                 [KeyboardButton("📅 Записи на звонки")],
                 [KeyboardButton("📌Подтверждение сдачи темы (еще не реализовано)")],
             ],
@@ -57,33 +56,34 @@ async def start_command(update, context):
             # ✅ Хардкод менторов
 
         manual_mentor = session.query(Mentor).get(1)  # Ментор по ручному тестированию
-        auto_mentor = session.query(Mentor).get(3)  # Ментор по автоматизированному тестированию
+        mentor = session.query(Mentor).get(student.mentor_id) if student.mentor_id else None
 
-        # ✅ Нормализация строки training_type для избежания ошибок из-за регистра
         training_type = student.training_type.strip().lower() if student.training_type else ""
-        mentor = session.query(Mentor).filter(Mentor.id == student.mentor_id).first() if student.mentor_id else None
-
-        # ✅ Формируем сообщение о менторах
         mentor_info = ""
+
         if training_type == "фуллстек":
+            # Показываем обоих: ручной (жестко) + закреплённый (auto)
             mentor_info = "\n👨‍🏫 Менторы для ваших направлений:\n"
-            mentor_info += f"💼 Ручное тестирование: {manual_mentor.full_name if manual_mentor else 'Не назначен'} {manual_mentor.telegram}\n"
-            mentor_info += f"💻 Автоматизированное тестирование: {auto_mentor.full_name if auto_mentor else 'Не назначен'} {auto_mentor.telegram}"
+            mentor_info += f"💼 Ручное тестирование: {manual_mentor.full_name if manual_mentor else 'Не назначен'} {manual_mentor.telegram if manual_mentor else ''}\n"
+            mentor_info += f"💻 Автотестирование: {mentor.full_name if mentor else 'Не назначен'} {mentor.telegram if mentor else ''}"
         elif training_type == "ручное тестирование":
-            mentor_info = f"\n👨‍🏫 Ваш ментор по ручному тестированию: {mentor.full_name if manual_mentor else 'Не назначен'} {mentor.telegram}"
+            mentor_info = f"\n👨‍🏫 Ваш ментор по ручному тестированию: {mentor.full_name if mentor else 'Не назначен'} {mentor.telegram if mentor else ''}"
         elif training_type == "автотестирование":
-            mentor_info = f"\n👨‍🏫 Ваш ментор по автоматизированному тестированию: {auto_mentor.full_name if auto_mentor else 'Не назначен'} {auto_mentor.telegram}"
+            mentor_info = f"\n👨‍🏫 Ваш ментор по автотестированию: {mentor.full_name if mentor else 'Не назначен'} {mentor.telegram if mentor else ''}"
         else:
             mentor_info = "\n⚠ Обратите внимание: У вас не указан тип обучения."
 
-        keyboard = ReplyKeyboardMarkup(
-            keyboard=[
-                [KeyboardButton("📅 Записаться на звонок")],
-                [KeyboardButton("📚 Отправить домашку")],
-                [KeyboardButton("💳 Оплата за обучение")]
-            ],
-            resize_keyboard=True
-        )
+        keyboard_buttons = [
+            [KeyboardButton("📅 Записаться на звонок")],
+            [KeyboardButton("📚 Отправить домашку")],
+            [KeyboardButton("💳 Оплата за обучение")]
+        ]
+
+        # 🔍 Добавляем кнопку, если студент устроился
+        if student.training_status.strip().lower() == "устроился":
+            keyboard_buttons.append([KeyboardButton("💸 Выплата комиссии")])
+
+        keyboard = ReplyKeyboardMarkup(keyboard_buttons, resize_keyboard=True)
         await update.message.reply_text(f"🔹 Привет, {student.fio}! Вы вошли как ученик.{mentor_info}",
                                         reply_markup=keyboard)
         return

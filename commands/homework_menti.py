@@ -69,42 +69,42 @@ async def submit_homework(update: Update, context):
 async def select_stack_type(update: Update, context):
     """Фуллстек-студент выбирает направление сдачи домашки."""
     direction_choice = update.message.text.strip()
-    date_text = update.message.text.strip()
-    if date_text.lower() == "отмена":
-        await back_to_main_menu(update, context)  # Возврат в меню
+
+    if direction_choice.lower() == "отмена":
+        await back_to_main_menu(update, context)
         return ConversationHandler.END
+
+    if direction_choice not in ["Ручное тестирование", "Автотестирование"]:
+        await update.message.reply_text("❌ Ошибка! Выберите направление из предложенных.")
+        return HOMEWORK_SELECT_TYPE
+
+    student_telegram = f"@{update.message.from_user.username}"
+    student = get_student_by_fio_or_telegram(student_telegram)
+
+    if not student:
+        await update.message.reply_text("❌ Студент не найден.")
+        return ConversationHandler.END
+
+    # Сохраняем направление
+    context.user_data["training_type"] = direction_choice
+
+    # Определяем ментора по направлению
     if direction_choice == "Ручное тестирование":
-        mentor_id = 1
-    elif direction_choice == "Автотестирование":
-        mentor = get_mentor_by_direction("Автотестирование")
-        if not mentor:
-            await update.message.reply_text("❌ Ментор по автотестированию не найден.")
-            return CALL_SCHEDULE
+        context.user_data["mentor_id"] = 1
+    else:  # Автотестирование
+        context.user_data["mentor_id"] = student.mentor_id
 
-        mentor_id = mentor.id
-    else:
-        await update.message.reply_text("❌ Ошибка! Выберите одно из предложенных направлений.")
-        return HOMEWORK_SELECT_TYPE
+    context.user_data["mentor_telegram"] = student.mentor.telegram if student.mentor else None
 
-    mentor = session.query(Mentor).filter(Mentor.id == mentor_id).first()
-
-    if not mentor:
-        await update.message.reply_text("❌ Ошибка! Выбранный ментор не найден.")
-        return HOMEWORK_SELECT_TYPE
-
-    context.user_data["mentor_id"] = mentor.id
-    context.user_data["mentor_telegram"] = mentor.telegram
-    context.user_data["training_type"] = direction_choice  # ✅ Сохраняем выбранное направление!
-
-    # ✅ Теперь предлагаем выбрать модуль, а не сразу сдавать домашку
+    # Показываем модули
     keyboard = [[KeyboardButton(mod)] for mod in MODULES_TOPICS[direction_choice].keys()]
-
     await update.message.reply_text(
         f"✅ Вы выбрали направление {direction_choice}. Теперь выберите модуль:",
         reply_markup=ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
     )
 
-    return HOMEWORK_MODULE  # 📌 Отправляем на выбор модуля!
+    return HOMEWORK_MODULE
+
 
 
 async def choose_topic(update: Update, context):

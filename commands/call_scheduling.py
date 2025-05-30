@@ -49,31 +49,34 @@ async def handle_direction_choice(update: Update, context: ContextTypes.DEFAULT_
     direction = update.message.text
     student_telegram = context.user_data.get("student_telegram")
 
+    # Получаем студента
+    student = session.query(Student).filter_by(telegram=student_telegram).first()
+
+    if not student:
+        await update.message.reply_text("❌ Студент не найден.")
+        return CALL_SCHEDULE
+
     if direction == "Ручное тестирование":
         mentor_id = 1
     elif direction == "Автотестирование":
-        mentor = get_mentor_by_direction("Автотестирование")
-        if not mentor:
-            await update.message.reply_text("❌ Ментор по автотестированию не найден.")
+        if not student.mentor_id:
+            await update.message.reply_text("❌ У вас не назначен ментор по автотестированию.")
             return CALL_SCHEDULE
-
-        mentor_id = mentor.id
+        mentor_id = student.mentor_id
     else:
         await update.message.reply_text("❌ Некорректный выбор, попробуйте снова.")
-        return CALL_SCHEDULE  # Повторный выбор направления
+        return CALL_SCHEDULE
 
     # Сохраняем выбранного ментора в БД
-    student = session.query(Student).filter_by(telegram=student_telegram).first()
-    if student:
-        student.mentor_id = mentor_id
-        session.commit()
+    student.mentor_id = mentor_id
+    session.commit()
 
-    # Переход к следующему шагу: выбор даты с кнопкой "Сегодня"
     await update.message.reply_text(
         "Введите дату созвона (в формате ДД.ММ.ГГГГ) или нажмите 'Сегодня':",
         reply_markup=ReplyKeyboardMarkup([["Сегодня"], ["Отмена"]], one_time_keyboard=True)
     )
-    return CALL_SCHEDULE_DATE  # Используем твое состояние
+    return CALL_SCHEDULE_DATE
+
 
 
 
