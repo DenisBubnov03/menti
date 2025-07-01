@@ -97,7 +97,7 @@ async def confirm_payment(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if student.payment_amount >= (student.total_cost or 0):
             student.fully_paid = "Да"
 
-    student.payment_amount = (student.payment_amount or 0) + amount
+    # student.payment_amount = (student.payment_amount or 0) + amount
 
     # ✅ Если студент оплатил всё — проставляем fully_paid = "Да"
     if student.payment_amount >= (student.total_cost or 0):
