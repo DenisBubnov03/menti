@@ -7,6 +7,15 @@ from data_base.db import session
 from data_base.models import Homework, Mentor
 from data_base.operations import get_pending_homework, approve_homework, update_homework_status, is_admin
 
+PROGRESS_FIELD_MAPPING = {
+    "Тема 1.4": "m1_homework",
+    "Тема 2.1": "m2_1_homework",
+    "Тема 2.3": "m2_3_homework",
+    "Тема 3.1": "m3_1_homework",
+    "Тема 3.2": "m3_2_homework",
+    "Тема 3.3": "m3_3_homework",
+}
+
 
 async def homework_list(update: Update, context):
     """Ментор смотрит список домашних заданий"""
@@ -78,6 +87,21 @@ async def accept_homework(update: Update, context):
     topic = context.user_data.get("topic", "Неизвестная тема")
     homework.status = "принято"
     session.commit()
+    student_id = homework.student.id
+    topic = homework.topic
+
+    related_homeworks = session.query(Homework).filter_by(
+        student_id=student_id,
+        topic=topic
+    ).all()
+
+    if all(hw.status == "принято" for hw in related_homeworks):
+        from data_base.models import ManualProgress
+        progress = session.query(ManualProgress).filter_by(student_id=student_id).first()
+        field_name = PROGRESS_FIELD_MAPPING.get(topic)
+        if progress and field_name and hasattr(progress, field_name):
+            setattr(progress, field_name, True)
+            session.commit()
     message_text = (
         f"✅ Домашка по модулю {module} "
         f"тема {topic} принята."

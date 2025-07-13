@@ -7,6 +7,7 @@ from commands.call_notifications import run_scheduler, show_mentor_calls
 from commands.call_scheduling import request_call, schedule_call_date, schedule_call_time, handle_direction_choice
 from commands.admin_functions import request_broadcast_message, send_broadcast, add_mentor_request, save_mentor_name, \
     save_mentor_tg, remove_mentor_request, remove_mentor, WAITING_MENTOR_TG_REMOVE, save_mentor_direction
+from commands.new.handlers import start_topic_submission, select_topic, submit_topic_students
 from commands.start_command import start_command
 from commands.homework_menti import *
 from commands.homework_mentor import *
@@ -117,6 +118,16 @@ def main():
         fallbacks=[],
         allow_reentry=True
     )
+    submit_topic_handler = ConversationHandler(
+        entry_points=[MessageHandler(filters.Text(["📌 Подтверждение сдачи темы"]), start_topic_submission)],
+        states={
+            SUBMIT_TOPIC_SELECT: [MessageHandler(filters.TEXT & ~filters.COMMAND, select_topic)],
+            SUBMIT_TOPIC_STUDENTS: [MessageHandler(filters.TEXT & ~filters.COMMAND, submit_topic_students)],
+        },
+        fallbacks=[]
+    )
+    application.add_handler(submit_topic_handler)
+
     application.add_handler(commission_handler)
 
     application.add_handler(payment_review_handler)

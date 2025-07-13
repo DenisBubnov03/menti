@@ -1,5 +1,7 @@
+from datetime import datetime
+
 from commands.homework_mentor import *
-from data_base.models import Mentor
+from data_base.models import Mentor, ManualProgress
 from data_base.operations import is_mentor, get_student_by_fio_or_telegram, is_admin
 from telegram import  ReplyKeyboardMarkup, KeyboardButton
 
@@ -19,6 +21,7 @@ async def start_command(update, context):
             keyboard=[
                 [KeyboardButton("💰 Платежи")],
                 [KeyboardButton("📚 Домашние задания")],
+                [KeyboardButton("📌 Подтверждение сдачи темы")],
                 [KeyboardButton("➕ Добавить ментора")],
                 [KeyboardButton("📢 Сделать рассылку")],
                 [KeyboardButton("🗑 Удалить ментора")],
@@ -39,6 +42,7 @@ async def start_command(update, context):
         keyboard = ReplyKeyboardMarkup(
             keyboard=[
                 [KeyboardButton("📚 Домашние задания")],
+                [KeyboardButton("📌 Подтверждение сдачи темы")],
                 [KeyboardButton("📅 Записи на звонки")],
                 [KeyboardButton("📌Подтверждение сдачи темы (еще не реализовано)")],
             ],
@@ -60,6 +64,22 @@ async def start_command(update, context):
 
         training_type = student.training_type.strip().lower() if student.training_type else ""
         mentor_info = ""
+        if training_type == "ручное тестирование":
+            session.rollback()
+            manual_progress = session.query(ManualProgress).filter_by(student_id=student.id).first()
+            if not manual_progress:
+                manual_progress = ManualProgress(
+                    student_id=student.id,
+                    m1_start_date=datetime.now().date()  # Ставим сегодняшнюю дату
+                )
+                session.add(manual_progress)
+                session.commit()
+
+                # Отправляем ссылку на первый модуль
+                await update.message.reply_text(
+                    "🧠 Добро пожаловать на курс по ручному тестированию!\n"
+                    "Вот ссылка на первый модуль: https://thankful-candy-c57.notion.site/1-20594f774aab81db8392f01309905510?source=copy_link"
+                )
 
         if training_type == "фуллстек":
             # Показываем обоих: ручной (жестко) + закреплённый (auto)

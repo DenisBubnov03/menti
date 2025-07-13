@@ -81,6 +81,41 @@ class Payment(Base):
     student = relationship("Student", back_populates="payments")
     mentor = relationship("Mentor", back_populates="payments")
 
+class ManualProgress(Base):
+    __tablename__ = "manual_progress"
+
+    student_id = Column(Integer, ForeignKey("students.id"), primary_key=True)
+
+    m1_start_date = Column(Date)
+    m1_submission_date = Column(Date)
+    m1_homework = Column(Boolean)
+
+    m2_1_start_date = Column(Date)
+    m2_2_start_date = Column(Date)
+    m2_1_2_2_submission_date = Column(Date)
+    m2_1_homework = Column(Boolean)
+
+    m2_3_start_date = Column(Date)
+    m3_1_start_date = Column(Date)
+    m2_3_3_1_submission_date = Column(Date)
+    m2_3_homework = Column(Boolean)
+    m3_1_homework = Column(Boolean)
+
+    m3_2_start_date = Column(Date)
+    m3_2_submission_date = Column(Date)
+    m3_2_homework = Column(Boolean)
+
+    m3_3_start_date = Column(Date)
+    m3_3_submission_date = Column(Date)
+    m3_3_homework = Column(Boolean)
+
+    m4_1_start_date = Column(Date)
+    m4_1_submission_date = Column(Date)
+
+    m4_2_start_date = Column(Date)
+    m4_3_start_date = Column(Date)
+    m4_2_4_3_submission_date = Column(Date)
+
     def __repr__(self):
         return f"<Payment(id={self.id}, student_id={self.student_id}, mentor_id={self.mentor_id}, amount={self.amount}, date={self.payment_date})>"
 
