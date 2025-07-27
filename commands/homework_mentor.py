@@ -6,6 +6,7 @@ from commands.states import HOMEWORK_WAITING
 from data_base.db import session
 from data_base.models import Homework, Mentor
 from data_base.operations import get_pending_homework, approve_homework, update_homework_status, is_admin
+from data_base.models import Student
 
 PROGRESS_FIELD_MAPPING = {
     "Тема 1.4": "m1_homework",
@@ -14,6 +15,7 @@ PROGRESS_FIELD_MAPPING = {
     "Тема 3.1": "m3_1_homework",
     "Тема 3.2": "m3_2_homework",
     "Тема 3.3": "m3_3_homework",
+    "Тема 4.5": "m4_5_homework",
 }
 
 
@@ -79,6 +81,15 @@ async def accept_homework(update: Update, context):
     hw_id = context.user_data["homework_id"]
     # Получаем данные студента
     homework = session.query(Homework).filter(Homework.id == hw_id).first()
+    mentor_tg = "@" + update.message.from_user.username
+    mentor = session.query(Mentor).filter_by(telegram=mentor_tg).first()
+    if not mentor:
+        await update.message.reply_text("❌ Вы не зарегистрированы как ментор.")
+        return await back_to_main_menu(update, context)
+    student = session.query(Student).filter_by(id=homework.student_id).first()
+    if not (student and (student.mentor_id == mentor.id or student.auto_mentor_id == mentor.id)):
+        await update.message.reply_text("❌ Вы не являетесь ментором этого студента!")
+        return await back_to_main_menu(update, context)
     await update.message.reply_text(f"✅ Домашка {hw_id} принята!")
     message = update.message
     username = str(message.from_user.username)

@@ -59,17 +59,17 @@ async def handle_direction_choice(update: Update, context: ContextTypes.DEFAULT_
     if direction == "Ручное тестирование":
         mentor_id = 1
     elif direction == "Автотестирование":
-        if not student.mentor_id:
+        auto_mentor_id = getattr(student, 'auto_mentor_id', None)
+        if not auto_mentor_id:
             await update.message.reply_text("❌ У вас не назначен ментор по автотестированию.")
             return CALL_SCHEDULE
-        mentor_id = student.mentor_id
+        mentor_id = auto_mentor_id
     else:
         await update.message.reply_text("❌ Некорректный выбор, попробуйте снова.")
         return CALL_SCHEDULE
 
-    # Сохраняем выбранного ментора в БД
-    student.mentor_id = mentor_id
-    session.commit()
+    # Сохраняем выбранного ментора в context.user_data (НЕ в базе)
+    context.user_data["mentor_id"] = mentor_id
 
     await update.message.reply_text(
         "Введите дату созвона (в формате ДД.ММ.ГГГГ) или нажмите 'Сегодня':",
@@ -123,7 +123,8 @@ async def schedule_call_time(update: Update, context):
         await back_to_main_menu(update, context)  # Возврат в меню
         return ConversationHandler.END
 
-    mentor = session.query(Mentor).filter_by(id=student.mentor_id).first()
+    mentor_id = context.user_data.get("mentor_id", student.mentor_id)
+    mentor = session.query(Mentor).filter_by(id=mentor_id).first()
     mentor_name = mentor.full_name if mentor else "Неизвестный ментор"
     mentor_tg = mentor.telegram if mentor else "Нет данных"
 

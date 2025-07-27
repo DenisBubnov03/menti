@@ -53,6 +53,12 @@ async def forward_payment(update: Update, context):
         await update.message.reply_text("⚠ Не удалось найти профиль или ментора.")
         return ConversationHandler.END
 
+    # --- Исправление mentor_id для авто и фуллстеков ---
+    mentor_id = student.mentor_id  # по умолчанию ручной
+    if student.training_type in ["Автотестирование", "Фуллстек"] and getattr(student, 'auto_mentor_id', None):
+        mentor_id = student.auto_mentor_id
+    # --- конец исправления ---
+
     total_paid = student.payment_amount or Decimal("0")
     total_cost = student.total_cost or Decimal("0")
 
@@ -69,7 +75,7 @@ async def forward_payment(update: Update, context):
 
     new_payment = Payment(
         student_id=student.id,
-        mentor_id=mentor.id,
+        mentor_id=mentor_id,
         amount=Decimal(str(amount)),
         payment_date=datetime.now().date(),
         comment=comment,
@@ -82,8 +88,8 @@ async def forward_payment(update: Update, context):
     await update.message.reply_text("✅ Ваш платёж отправлен на проверку ментору.")
 
     # ✅ Уведомление ментора
-    # mentor_chat_id = 1257163820  # 🔒 Жёстко заданный ID
-    mentor_chat_id = 325531224
+    mentor_chat_id = 1257163820  # 🔒 Жёстко заданный ID
+    # mentor_chat_id = 325531224
 
     await context.bot.send_message(
         chat_id=mentor_chat_id,
@@ -139,10 +145,13 @@ async def forward_commission_payment(update: Update, context):
     if not student or not mentor:
         await update.message.reply_text("⚠ Не удалось найти профиль или ментора.")
         return ConversationHandler.END
-
+    mentor_id = student.mentor_id
+    auto_mentor_id = getattr(student, 'auto_mentor_id', None)
+    if student.training_type in ["Автотестирование", "Фуллстек"] and auto_mentor_id:
+        mentor_id = auto_mentor_id
     new_payment = Payment(
         student_id=student.id,
-        mentor_id=mentor.id,
+        mentor_id=mentor_id,
         amount=Decimal(str(amount)),
         payment_date=datetime.now().date(),
         comment="Комиссия",

@@ -1,7 +1,7 @@
 import asyncio
 import tracemalloc
 
-from telegram.ext import Application, CommandHandler, filters, CallbackQueryHandler
+from telegram.ext import Application, CommandHandler, filters, CallbackQueryHandler, MessageHandler, ConversationHandler
 
 from commands.call_notifications import run_scheduler, show_mentor_calls
 from commands.call_scheduling import request_call, schedule_call_date, schedule_call_time, handle_direction_choice
@@ -14,7 +14,9 @@ from commands.homework_mentor import *
 from commands.payment_menti import request_payment, forward_payment, request_commission_payment, \
     forward_commission_payment
 from commands.payment_mentor import reject_payment, show_pending_payments, check_payment_by_id, confirm_payment
+from commands.student_progress import request_student_progress, show_student_progress
 from commands.states import *
+from commands.get_new_topic import get_new_topic_entry, get_new_topic_direction, GET_TOPIC_DIRECTION
 
 import os
 from dotenv import load_dotenv
@@ -126,7 +128,26 @@ def main():
         },
         fallbacks=[]
     )
+    
+    student_progress_handler = ConversationHandler(
+        entry_points=[MessageHandler(filters.Regex("^📊 Проверить успеваемость$"), request_student_progress)],
+        states={
+            STUDENT_PROGRESS_WAITING: [MessageHandler(filters.TEXT & ~filters.COMMAND, show_student_progress)]
+        },
+        fallbacks=[]
+    )
+    
+    get_new_topic_handler = ConversationHandler(
+        entry_points=[MessageHandler(filters.Regex("^🆕 Получить новую тему$"), get_new_topic_entry)],
+        states={
+            GET_TOPIC_DIRECTION: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_new_topic_direction)]
+        },
+        fallbacks=[]
+    )
+
+    application.add_handler(student_progress_handler)
     application.add_handler(submit_topic_handler)
+    application.add_handler(get_new_topic_handler)
 
     application.add_handler(commission_handler)
 

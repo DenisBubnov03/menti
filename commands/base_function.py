@@ -24,6 +24,8 @@ async def back_to_main_menu(update: Update, context):
                 keyboard=[
                     [KeyboardButton("💰 Платежи")],
                     [KeyboardButton("📚 Домашние задания")],
+                    [KeyboardButton("📌 Подтверждение сдачи темы")],
+                    [KeyboardButton("📊 Проверить успеваемость")],
                     [KeyboardButton("➕ Добавить ментора")],
                     [KeyboardButton("📢 Сделать рассылку")],
                     [KeyboardButton("🗑 Удалить ментора")],
@@ -38,9 +40,9 @@ async def back_to_main_menu(update: Update, context):
         keyboard = ReplyKeyboardMarkup(
             keyboard=[
                 [KeyboardButton("📚 Домашние задания")],
-                [KeyboardButton("🎓Выставление оценки (еще не реализовано)")],
+                [KeyboardButton("📌 Подтверждение сдачи темы")],
                 [KeyboardButton("📅 Записи на звонки")],
-                [KeyboardButton("📌Подтверждение сдачи темы (еще не реализовано)")],
+                [KeyboardButton("📊 Проверить успеваемость")],
             ],
             resize_keyboard=True
         )
@@ -50,12 +52,16 @@ async def back_to_main_menu(update: Update, context):
     # ✅ Проверяем, является ли пользователь студентом
     student = session.query(Student).filter_by(telegram=username).first()
     if student:
+        keyboard_buttons = [
+            [KeyboardButton("🆕 Получить новую тему")],
+            [KeyboardButton("📅 Записаться на звонок")],
+            [KeyboardButton("📚 Отправить домашку")],
+            [KeyboardButton("💳 Оплата за обучение")],
+        ]
+        if student.training_status and student.training_status.strip().lower() == "устроился":
+            keyboard_buttons.append([KeyboardButton("💸 Выплата комиссии")])
         keyboard = ReplyKeyboardMarkup(
-            keyboard=[
-                [KeyboardButton("📅 Записаться на звонок")],
-                [KeyboardButton("📚 Отправить домашку")],
-                [KeyboardButton("💳 Оплата за обучение")]
-            ],
+            keyboard=keyboard_buttons,
             resize_keyboard=True
         )
         await update.message.reply_text("🔙 Вы вернулись в главное меню.", reply_markup=keyboard)

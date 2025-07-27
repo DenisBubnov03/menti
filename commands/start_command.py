@@ -22,6 +22,7 @@ async def start_command(update, context):
                 [KeyboardButton("💰 Платежи")],
                 [KeyboardButton("📚 Домашние задания")],
                 [KeyboardButton("📌 Подтверждение сдачи темы")],
+                [KeyboardButton("📊 Проверить успеваемость")],
                 [KeyboardButton("➕ Добавить ментора")],
                 [KeyboardButton("📢 Сделать рассылку")],
                 [KeyboardButton("🗑 Удалить ментора")],
@@ -44,7 +45,7 @@ async def start_command(update, context):
                 [KeyboardButton("📚 Домашние задания")],
                 [KeyboardButton("📌 Подтверждение сдачи темы")],
                 [KeyboardButton("📅 Записи на звонки")],
-                [KeyboardButton("📌Подтверждение сдачи темы (еще не реализовано)")],
+                [KeyboardButton("📊 Проверить успеваемость")],
             ],
             resize_keyboard=True
         )
@@ -61,42 +62,27 @@ async def start_command(update, context):
 
         manual_mentor = session.query(Mentor).get(1)  # Ментор по ручному тестированию
         mentor = session.query(Mentor).get(student.mentor_id) if student.mentor_id else None
+        auto_mentor = session.query(Mentor).get(getattr(student, 'auto_mentor_id', None)) if getattr(student, 'auto_mentor_id', None) else None
 
         training_type = student.training_type.strip().lower() if student.training_type else ""
         mentor_info = ""
-        if training_type == "ручное тестирование":
-            session.rollback()
-            manual_progress = session.query(ManualProgress).filter_by(student_id=student.id).first()
-            if not manual_progress:
-                manual_progress = ManualProgress(
-                    student_id=student.id,
-                    m1_start_date=datetime.now().date()  # Ставим сегодняшнюю дату
-                )
-                session.add(manual_progress)
-                session.commit()
-
-                # Отправляем ссылку на первый модуль
-                await update.message.reply_text(
-                    "🧠 Добро пожаловать на курс по ручному тестированию!\n"
-                    "Вот ссылка на первый модуль: https://thankful-candy-c57.notion.site/1-20594f774aab81db8392f01309905510?source=copy_link"
-                )
 
         if training_type == "фуллстек":
-            # Показываем обоих: ручной (жестко) + закреплённый (auto)
             mentor_info = "\n👨‍🏫 Менторы для ваших направлений:\n"
             mentor_info += f"💼 Ручное тестирование: {manual_mentor.full_name if manual_mentor else 'Не назначен'} {manual_mentor.telegram if manual_mentor else ''}\n"
-            mentor_info += f"💻 Автотестирование: {mentor.full_name if mentor else 'Не назначен'} {mentor.telegram if mentor else ''}"
+            mentor_info += f"💻 Автотестирование: {auto_mentor.full_name if auto_mentor else 'Не назначен'} {auto_mentor.telegram if auto_mentor else ''}"
         elif training_type == "ручное тестирование":
             mentor_info = f"\n👨‍🏫 Ваш ментор по ручному тестированию: {mentor.full_name if mentor else 'Не назначен'} {mentor.telegram if mentor else ''}"
         elif training_type == "автотестирование":
-            mentor_info = f"\n👨‍🏫 Ваш ментор по автотестированию: {mentor.full_name if mentor else 'Не назначен'} {mentor.telegram if mentor else ''}"
+            mentor_info = f"\n👨‍🏫 Ваш ментор по автотестированию: {auto_mentor.full_name if mentor else 'Не назначен'} {auto_mentor.telegram if mentor else ''}"
         else:
             mentor_info = "\n⚠ Обратите внимание: У вас не указан тип обучения."
 
         keyboard_buttons = [
+            [KeyboardButton("🆕 Получить новую тему")],
             [KeyboardButton("📅 Записаться на звонок")],
             [KeyboardButton("📚 Отправить домашку")],
-            [KeyboardButton("💳 Оплата за обучение")]
+            [KeyboardButton("💳 Оплата за обучение")],
         ]
 
         # 🔍 Добавляем кнопку, если студент устроился

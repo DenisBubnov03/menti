@@ -13,9 +13,9 @@ from data_base.operations import get_pending_homework, approve_homework, \
 MODULES_TOPICS = {
     "Ручное тестирование": {
         "Модуль 1": ["Тема 1.4", 'Отмена'],
-        "Модуль 2": ["Тема 2.1", "Тема 2.2", "Тема 2.3", "Тема 2.4", 'Отмена'],
+        "Модуль 2": ["Тема 2.1", "Тема 2.3", 'Отмена'],
         "Модуль 3": ["Тема 3.1", "Тема 3.2", "Тема 3.3", 'Отмена'],
-        "Модуль 4": ["Тема 4.1", "Тема 4.2", "Тема 4.3", 'Отмена'],
+        "Модуль 4": ["Тема 4.5", 'Отмена'],
         "Модуль 5": ["Резюме/Легенда", "Отмена"],
 
         "Отмена": []
@@ -72,7 +72,7 @@ async def select_stack_type(update: Update, context):
 
     if direction_choice.lower() == "отмена":
         await back_to_main_menu(update, context)
-        return ConversationHandler.END
+        return await back_to_main_menu(update, context)
 
     if direction_choice not in ["Ручное тестирование", "Автотестирование"]:
         await update.message.reply_text("❌ Ошибка! Выберите направление из предложенных.")
@@ -83,18 +83,19 @@ async def select_stack_type(update: Update, context):
 
     if not student:
         await update.message.reply_text("❌ Студент не найден.")
-        return ConversationHandler.END
+        return await back_to_main_menu(update, context)
 
     # Сохраняем направление
     context.user_data["training_type"] = direction_choice
 
     # Определяем ментора по направлению
     if direction_choice == "Ручное тестирование":
-        context.user_data["mentor_id"] = 1
+        context.user_data["mentor_id"] = 1  # manual_mentor
+        context.user_data["mentor_telegram"] = session.query(Mentor).get(1).telegram if session.query(Mentor).get(1) else None
     else:  # Автотестирование
-        context.user_data["mentor_id"] = student.mentor_id
-
-    context.user_data["mentor_telegram"] = student.mentor.telegram if student.mentor else None
+        context.user_data["mentor_id"] = getattr(student, 'auto_mentor_id', None)
+        auto_mentor = session.query(Mentor).get(getattr(student, 'auto_mentor_id', None)) if getattr(student, 'auto_mentor_id', None) else None
+        context.user_data["mentor_telegram"] = auto_mentor.telegram if auto_mentor else None
 
     # Показываем модули
     keyboard = [[KeyboardButton(mod)] for mod in MODULES_TOPICS[direction_choice].keys()]
@@ -140,10 +141,10 @@ async def choose_mentor(update: Update, context):
     date_text = update.message.text.strip()
     if date_text.lower() == "отмена":
         await back_to_main_menu(update, context)  # Возврат в меню
-        return ConversationHandler.END
+        return await back_to_main_menu(update, context)
     if not student:
         await update.message.reply_text("❌ Вы не зарегистрированы как студент!")
-        return ConversationHandler.END
+        return await back_to_main_menu(update, context)
 
     context.user_data["topic"] = update.message.text  # Запоминаем тему
 
@@ -158,7 +159,7 @@ async def choose_mentor(update: Update, context):
 
     if not mentor:
         await update.message.reply_text("❌ Ошибка! Ваш ментор не найден.")
-        return ConversationHandler.END
+        return await back_to_main_menu(update, context)
 
     context.user_data["mentor_id"] = mentor.id
     context.user_data["mentor_telegram"] = mentor.telegram
@@ -201,7 +202,23 @@ async def save_and_forward_homework(update: Update, context):
         status="ожидает проверки"
     )
     session.add(new_homework)
-    session.commit()
+
+    # Обновляем прогресс: ставим True для соответствующего поля домашки
+    from data_base.models import ManualProgress
+    progress = session.query(ManualProgress).filter_by(student_id=student.id).first()
+    PROGRESS_FIELD_MAPPING = {
+        "Тема 1.4": "m1_homework",
+        "Тема 2.1": "m2_1_homework",
+        "Тема 2.3": "m2_3_homework",
+        "Тема 3.1": "m3_1_homework",
+        "Тема 3.2": "m3_2_homework",
+        "Тема 3.3": "m3_3_homework",
+        "Тема 4.5": "m4_5_homework",
+    }
+    field_name = PROGRESS_FIELD_MAPPING.get(topic)
+    if progress and field_name and hasattr(progress, field_name):
+        setattr(progress, field_name, True)
+        session.commit()
 
     # ✅ Получаем chat_id ментора, если он отсутствует в context.user_data
     mentor_chat_id = context.user_data.get("chat_id")
@@ -235,12 +252,16 @@ async def save_and_forward_homework(update: Update, context):
         message_id=update.message.message_id
     )
 
+    keyboard_buttons = [
+        [KeyboardButton("🆕 Получить новую тему")],
+        [KeyboardButton("📅 Записаться на звонок")],
+        [KeyboardButton("📚 Отправить домашку")],
+        [KeyboardButton("💳 Оплата за обучение")],
+    ]
+    if student.training_status and student.training_status.strip().lower() == "устроился":
+        keyboard_buttons.append([KeyboardButton("💸 Выплата комиссии")])
     keyboard = ReplyKeyboardMarkup(
-        keyboard=[
-            [KeyboardButton("📅 Записаться на звонок")],
-            [KeyboardButton("📚 Отправить домашку")],
-            [KeyboardButton("💳 Оплата за обучение")]
-        ],
+        keyboard=keyboard_buttons,
         resize_keyboard=True
     )
     await update.message.reply_text("✅ Домашка отправлена ментору!", reply_markup=keyboard)
