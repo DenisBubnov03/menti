@@ -321,14 +321,14 @@ async def handle_manual_direction(update: Update, context, student: Student):
 
 # Ссылки на модули автотестирования
 AUTO_MODULE_LINKS = {
-    1: "https://notion.site/auto-module-1-link",
-    2: "https://notion.site/auto-module-2-link",
-    3: "https://notion.site/auto-module-3-link",
-    4: "https://notion.site/auto-module-4-link",
-    5: "https://notion.site/auto-module-5-link",
-    6: "https://notion.site/auto-module-6-link",
-    7: "https://notion.site/auto-module-7-link",
-    8: "https://notion.site/auto-module-8-link",
+    1: "https://thankful-candy-c57.notion.site/1-12794f774aab804fa485d54e333f7918?source=copy_link",
+    2: "https://thankful-candy-c57.notion.site/2-Python-AQA-26f9629adcbb4cb49c74592a1ba2f66c?source=copy_link",
+    3: "https://thankful-candy-c57.notion.site/3-Python-12794f774aab80b8ac64e4d819c0ca52?source=copy_link",
+    4: "https://thankful-candy-c57.notion.site/4-12494f774aab80a180a5feda380ca76b?source=copy_link",
+    5: "https://thankful-candy-c57.notion.site/5-16b94f774aab800f91acd78f1d488d0a?source=copy_link",
+    6: "https://thankful-candy-c57.notion.site/6-13e94f774aab807bb68bc31f5f5bc482?source=copy_link",
+    7: "https://thankful-candy-c57.notion.site/7-13e94f774aab8011b6bee07977107598?source=copy_link",
+    8: "https://thankful-candy-c57.notion.site/8-aea202400ee44aedaa7f42a01bc484b4?source=copy_link",
 }
 
 async def handle_auto_direction(update, context, student):
