@@ -3,7 +3,11 @@ from datetime import datetime
 from commands.homework_mentor import *
 from data_base.models import Mentor, ManualProgress
 from data_base.operations import is_mentor, get_student_by_fio_or_telegram, is_admin
-from telegram import  ReplyKeyboardMarkup, KeyboardButton
+from telegram import  ReplyKeyboardMarkup, KeyboardButton, Update
+from telegram.ext import ContextTypes
+from data_base.db import session
+from data_base.models import Student, ManualProgress, AutoProgress
+from commands.get_new_topic import MANUAL_MODULE_2_LINKS, MANUAL_MODULE_3_LINKS, MANUAL_MODULE_4_LINKS, AUTO_MODULE_LINKS
 
 
 async def start_command(update, context):
@@ -82,6 +86,7 @@ async def start_command(update, context):
             [KeyboardButton("🆕 Получить новую тему")],
             [KeyboardButton("📅 Записаться на звонок")],
             [KeyboardButton("📚 Отправить домашку")],
+            [KeyboardButton("📜 Мои темы и ссылки")],
             [KeyboardButton("💳 Оплата за обучение")],
         ]
 
@@ -93,3 +98,55 @@ async def start_command(update, context):
         await update.message.reply_text(f"🔹 Привет, {student.fio}! Вы вошли как ученик.{mentor_info}",
                                         reply_markup=keyboard)
         return
+
+
+async def my_topics_and_links(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    student_telegram = f"@{update.message.from_user.username}"
+    student = session.query(Student).filter_by(telegram=student_telegram).first()
+    if not student:
+        await update.message.reply_text("❌ Вы не зарегистрированы как студент!")
+        return
+    msg = []
+    # Ручное тестирование
+    if student.training_type.lower().startswith("ручн") or student.training_type.lower().startswith("фулл"):
+        progress = session.query(ManualProgress).filter_by(student_id=student.id).first()
+        if progress:
+            msg.append("<b>Ручное тестирование:</b>")
+            # 2 модуль
+            if progress.m2_1_start_date:
+                msg.append(f"- Тема 2.1: {MANUAL_MODULE_2_LINKS.get('Тема 2.1','-')}")
+            if progress.m2_3_start_date:
+                msg.append(f"- Тема 2.3: {MANUAL_MODULE_2_LINKS.get('Тема 2.3','-')}")
+            # 3 модуль
+            if progress.m3_1_start_date:
+                msg.append(f"- Тема 3.1: {MANUAL_MODULE_3_LINKS.get('Тема 3.1','-')}")
+            if progress.m3_2_start_date:
+                msg.append(f"- Тема 3.2: {MANUAL_MODULE_3_LINKS.get('Тема 3.2','-')}")
+            if progress.m3_3_start_date:
+                msg.append(f"- Тема 3.3: {MANUAL_MODULE_3_LINKS.get('Тема 3.3','-')}")
+            # 4 модуль
+            if progress.m4_1_start_date:
+                msg.append(f"- Тема 4.1: {MANUAL_MODULE_4_LINKS.get('Тема 4.1','-')}")
+            if progress.m4_2_start_date:
+                msg.append(f"- Тема 4.2: {MANUAL_MODULE_4_LINKS.get('Тема 4.2','-')}")
+            if progress.m4_3_start_date:
+                msg.append(f"- Тема 4.3: {MANUAL_MODULE_4_LINKS.get('Тема 4.3','-')}")
+            # Доп. темы 4 модуля
+            if getattr(progress, 'm4_4_start_date', None):
+                msg.append(f"- Тема 4.4: {MANUAL_MODULE_4_LINKS.get('Тема 4.4','-')}")
+            if getattr(progress, 'm4_5_start_date', None):
+                msg.append(f"- Тема 4.5: {MANUAL_MODULE_4_LINKS.get('Тема 4.5','-')}")
+            if getattr(progress, 'm4_mock_exam_start_date', None):
+                msg.append(f"- Мок экзамен: {MANUAL_MODULE_4_LINKS.get('Мок экзамен','-')}")
+    # Автотестирование
+    if student.training_type.lower().startswith("авто") or student.training_type.lower().startswith("фулл"):
+        progress = session.query(AutoProgress).filter_by(student_id=student.id).first()
+        if progress:
+            msg.append("\n<b>Автотестирование:</b>")
+            for i in range(1, 9):
+                if getattr(progress, f"m{i}_start_date", None):
+                    msg.append(f"- Модуль {i}: {AUTO_MODULE_LINKS.get(i,'-')}")
+    if not msg:
+        await update.message.reply_text("У вас пока нет открытых тем.")
+    else:
+        await update.message.reply_text("\n".join(msg), parse_mode="HTML")

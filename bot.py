@@ -8,7 +8,7 @@ from commands.call_scheduling import request_call, schedule_call_date, schedule_
 from commands.admin_functions import request_broadcast_message, send_broadcast, add_mentor_request, save_mentor_name, \
     save_mentor_tg, remove_mentor_request, remove_mentor, WAITING_MENTOR_TG_REMOVE, save_mentor_direction
 from commands.new.handlers import start_topic_submission, select_topic, submit_topic_students
-from commands.start_command import start_command
+from commands.start_command import start_command, my_topics_and_links
 from commands.homework_menti import *
 from commands.homework_mentor import *
 from commands.payment_menti import request_payment, forward_payment, request_commission_payment, \
@@ -162,6 +162,7 @@ def main():
     application.add_handler(homework_handler)
     application.add_handler(homework_submission_handler)
     application.add_handler(CommandHandler("start", start_command))
+    application.add_handler(MessageHandler(filters.TEXT & filters.Regex("^📜 Мои темы и ссылки$"), my_topics_and_links))
     application.run_polling()
 
 

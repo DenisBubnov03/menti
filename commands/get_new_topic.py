@@ -30,7 +30,7 @@ async def get_new_topic_entry(update: Update, context: ContextTypes.DEFAULT_TYPE
         # Проверяем завершение автотестирования
         auto_completed = False
         if auto_progress:
-            auto_completed = auto_progress.m8_opened and auto_progress.m8_topic_passed
+            auto_completed = auto_progress.m8_start_date
         
         # Если оба направления завершены
         if manual_completed and auto_completed:
@@ -210,9 +210,25 @@ async def handle_manual_direction(update: Update, context, student: Student):
     # --- Новая логика для 4 модуля ---
     if next_module == 4:
         # Проверка оплаты и договора
-        if student.fully_paid != "Да":
-            await update.message.reply_text("Чтобы получить 4 модуль, оплатите всю сумму за обучение!")
-            return await back_to_main_menu(update, context)
+        if student.training_type.strip().lower() == "фуллстек":
+            # Для фуллстек-студентов проверяем 50% оплаты
+            if student.total_cost and student.payment_amount:
+                payment_percentage = (float(student.payment_amount) / float(student.total_cost)) * 100
+                if payment_percentage < 50:
+                    await update.message.reply_text(
+                        f"Чтобы получить 4 модуль по ручному тестированию, оплатите минимум 50% от общей стоимости обучения!\n"
+                        f"Ваша оплата: {student.payment_amount} руб. из {student.total_cost} руб. ({payment_percentage:.1f}%)"
+                    )
+                    return await back_to_main_menu(update, context)
+            else:
+                await update.message.reply_text("Чтобы получить 4 модуль по ручному тестированию, оплатите минимум 50% от общей стоимости обучения!")
+                return await back_to_main_menu(update, context)
+        else:
+            # Для обычных студентов проверяем полную оплату
+            if student.fully_paid != "Да":
+                await update.message.reply_text("Чтобы получить 4 модуль, оплатите всю сумму за обучение!")
+                return await back_to_main_menu(update, context)
+        
         if not getattr(student, 'contract_signed', False):
             await update.message.reply_text("Чтобы получить 4 модуль, подпишите договор! Для получения договора обратитесь к @radosttvoyaa")
             return await back_to_main_menu(update, context)
@@ -323,14 +339,14 @@ async def handle_auto_direction(update, context, student):
         session.commit()
 
     # Проверка на завершение всех модулей автотестирования
-    if progress.m8_opened and progress.m8_topic_passed:
+    if progress.m8_start_date:
         await update.message.reply_text("🎉 Поздравляем! Вы получили все доступные темы по автотестированию!")
         return await back_to_main_menu(update, context)
 
     # 1 модуль: просто открыть, если не открыт
-    if not progress.m1_opened:
-        progress.m1_opened = True
-        progress.m2_opened = True  # Сразу открыть 2 модуль
+    if not progress.m1_start_date:
+        progress.m1_start_date = datetime.now().date()
+        progress.m2_start_date = datetime.now().date()  # Сразу открыть 2 модуль
         session.commit()
         await update.message.reply_text(
             f"Вам открыт 1 модуль автотестирования!\nСсылка: {AUTO_MODULE_LINKS[1]}\n\n"
@@ -339,45 +355,45 @@ async def handle_auto_direction(update, context, student):
         return await back_to_main_menu(update, context)
 
     # 2 модуль: экзамен сдаётся отдельно
-    if progress.m1_opened and progress.m2_opened and not progress.m2_exam_passed:
+    if progress.m1_start_date and progress.m2_start_date and not progress.m2_exam_passed_date:
         await update.message.reply_text("Сдайте экзамен по 2 модулю, чтобы двигаться дальше!")
         return await back_to_main_menu(update, context)
 
     # 3 модуль: открыт, если 2 экзамен сдан
-    if progress.m2_exam_passed and not progress.m3_opened:
-        progress.m3_opened = True
+    if progress.m2_exam_passed_date and not progress.m3_start_date:
+        progress.m3_start_date = datetime.now().date()
         session.commit()
         await update.message.reply_text(f"Вам открыт 3 модуль автотестирования!\nСсылка: {AUTO_MODULE_LINKS[3]}")
         return await back_to_main_menu(update, context)
-    if progress.m3_opened and not progress.m3_exam_passed:
+    if progress.m3_start_date and not progress.m3_exam_passed_date:
         await update.message.reply_text("Сдайте экзамен по 3 модулю, чтобы двигаться дальше!")
         return await back_to_main_menu(update, context)
 
     # 4-7 модули: открывать по очереди, сдача темы
     for i in range(4, 8):
-        opened = getattr(progress, f"m{i}_opened")
-        passed = getattr(progress, f"m{i}_topic_passed")
-        if not opened:
+        start_date = getattr(progress, f"m{i}_start_date")
+        passed_date = getattr(progress, f"m{i}_topic_passed_date")
+        if not start_date:
             # Проверка: предыдущий модуль должен быть сдан
-            prev_passed = getattr(progress, f"m{i-1}_topic_passed") if i > 4 else progress.m3_exam_passed
+            prev_passed = getattr(progress, f"m{i-1}_topic_passed_date") if i > 4 else progress.m3_exam_passed_date
             if prev_passed:
-                setattr(progress, f"m{i}_opened", True)
+                setattr(progress, f"m{i}_start_date", datetime.now().date())
                 session.commit()
                 await update.message.reply_text(f"Вам открыт {i} модуль автотестирования!\nСсылка: {AUTO_MODULE_LINKS[i]}")
                 return await back_to_main_menu(update, context)
             else:
                 await update.message.reply_text(f"Сдайте предыдущий модуль, чтобы открыть {i} модуль!")
                 return await back_to_main_menu(update, context)
-        if opened and not passed:
+        if start_date and not passed_date:
             await update.message.reply_text(f"Сдайте тему {i} модуля, чтобы двигаться дальше!")
             return await back_to_main_menu(update, context)
 
     # 8 модуль: открыть, если 7 сдан
-    if progress.m7_topic_passed and not progress.m8_opened:
-        progress.m8_opened = True
+    if progress.m7_topic_passed_date and not progress.m8_start_date:
+        progress.m8_start_date = datetime.now().date()
         session.commit()
         await update.message.reply_text(f"Вам открыт 8 модуль автотестирования!\nСсылка: {AUTO_MODULE_LINKS[8]}")
         return await back_to_main_menu(update, context)
-    if progress.m8_opened:
+    if progress.m8_start_date:
         await update.message.reply_text("Вы прошли все модули автотестирования!")
         return await back_to_main_menu(update, context)

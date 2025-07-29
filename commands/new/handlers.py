@@ -2,6 +2,7 @@
 
 from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import ContextTypes, ConversationHandler
+from datetime import datetime
 
 from commands.base_function import back_to_main_menu
 from commands.states import SUBMIT_TOPIC_SELECT, SUBMIT_TOPIC_STUDENTS
@@ -20,12 +21,12 @@ TOPIC_FIELD_MAPPING = {
 }
 
 AUTO_MODULE_FIELD_MAPPING = {
-    "Сдача 2 модуля": "m2_exam_passed",
-    "Сдача 3 модуля": "m3_exam_passed",
-    "Сдача 4 модуля": "m4_topic_passed",
-    "Сдача 5 модуля": "m5_topic_passed",
-    "Сдача 6 модуля": "m6_topic_passed",
-    "Сдача 7 модуля": "m7_topic_passed",
+    "Сдача 2 модуля": "m2_exam_passed_date",
+    "Сдача 3 модуля": "m3_exam_passed_date",
+    "Сдача 4 модуля": "m4_topic_passed_date",
+    "Сдача 5 модуля": "m5_topic_passed_date",
+    "Сдача 6 модуля": "m6_topic_passed_date",
+    "Сдача 7 модуля": "m7_topic_passed_date",
 }
 
 
@@ -122,10 +123,12 @@ async def submit_topic_students(update: Update, context: ContextTypes.DEFAULT_TY
                     progress = AutoProgress(student_id=student.id)
                     session.add(progress)
                 if field and hasattr(progress, field):
-                    if getattr(progress, field):
-                        already_submitted.append(username)
+                    current_date = getattr(progress, field)
+                    if current_date:
+                        existing_date = current_date.strftime("%d.%m.%Y") if hasattr(current_date, 'strftime') else str(current_date)
+                        already_submitted.append(f"{username} (сдал {existing_date})")
                         continue
-                    setattr(progress, field, True)
+                    setattr(progress, field, datetime.now().date())
                     found.append(username)
             else:
                 not_found.append(username + " (не найден)")
