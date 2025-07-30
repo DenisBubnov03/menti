@@ -7,7 +7,8 @@ from telegram import  ReplyKeyboardMarkup, KeyboardButton, Update
 from telegram.ext import ContextTypes
 from data_base.db import session
 from data_base.models import Student, ManualProgress, AutoProgress
-from commands.get_new_topic import MANUAL_MODULE_2_LINKS, MANUAL_MODULE_3_LINKS, MANUAL_MODULE_4_LINKS, AUTO_MODULE_LINKS
+from commands.get_new_topic import MANUAL_MODULE_2_LINKS, MANUAL_MODULE_3_LINKS, MANUAL_MODULE_4_LINKS, \
+    AUTO_MODULE_LINKS, MANUAL_MODULE_1_LINK
 
 
 async def start_command(update, context):
@@ -112,30 +113,38 @@ async def my_topics_and_links(update: Update, context: ContextTypes.DEFAULT_TYPE
         progress = session.query(ManualProgress).filter_by(student_id=student.id).first()
         if progress:
             msg.append("<b>Ручное тестирование:</b>")
+            # 1 модуль
+            if progress.m1_start_date:
+                msg.append(f"- Тема 1: {MANUAL_MODULE_1_LINK}")
             # 2 модуль
             if progress.m2_1_start_date:
-                msg.append(f"- Тема 2.1: {MANUAL_MODULE_2_LINKS.get('Тема 2.1','-')}")
+                msg.append(f"- Тема 2.1: {MANUAL_MODULE_2_LINKS.get('Тема 2.1', '-')}")
+            if progress.m2_2_start_date:
+                msg.append(f"- Тема 2.2: {MANUAL_MODULE_2_LINKS.get('Тема 2.2', '-')}")
             if progress.m2_3_start_date:
-                msg.append(f"- Тема 2.3: {MANUAL_MODULE_2_LINKS.get('Тема 2.3','-')}")
+                msg.append(
+                    f"- Тема 2.3: {MANUAL_MODULE_2_LINKS.get('Тема 2.3', '-')}\n"
+                    f"- Тема 2.4: https://thankful-candy-c57.notion.site/2-4-20594f774aab8197a077ef3921eaf641?source=copy_link"
+                )
             # 3 модуль
             if progress.m3_1_start_date:
-                msg.append(f"- Тема 3.1: {MANUAL_MODULE_3_LINKS.get('Тема 3.1','-')}")
+                msg.append(f"- Тема 3.1: {MANUAL_MODULE_3_LINKS.get('Тема 3.1', '-')}")
             if progress.m3_2_start_date:
-                msg.append(f"- Тема 3.2: {MANUAL_MODULE_3_LINKS.get('Тема 3.2','-')}")
+                msg.append(f"- Тема 3.2: {MANUAL_MODULE_3_LINKS.get('Тема 3.2', '-')}")
             if progress.m3_3_start_date:
-                msg.append(f"- Тема 3.3: {MANUAL_MODULE_3_LINKS.get('Тема 3.3','-')}")
+                msg.append(f"- Тема 3.3: {MANUAL_MODULE_3_LINKS.get('Тема 3.3', '-')}")
             # 4 модуль
             if progress.m4_1_start_date:
-                msg.append(f"- Тема 4.1: {MANUAL_MODULE_4_LINKS.get('Тема 4.1','-')}")
+                msg.append(f"- Тема 4.1: {MANUAL_MODULE_4_LINKS.get('Тема 4.1', '-')}")
             if progress.m4_2_start_date:
-                msg.append(f"- Тема 4.2: {MANUAL_MODULE_4_LINKS.get('Тема 4.2','-')}")
+                msg.append(f"- Тема 4.2: {MANUAL_MODULE_4_LINKS.get('Тема 4.2', '-')}")
             if progress.m4_3_start_date:
-                msg.append(f"- Тема 4.3: {MANUAL_MODULE_4_LINKS.get('Тема 4.3','-')}")
+                msg.append(f"- Тема 4.3: {MANUAL_MODULE_4_LINKS.get('Тема 4.3', '-')}")
             # Доп. темы 4 модуля
             if getattr(progress, 'm4_4_start_date', None):
-                msg.append(f"- Тема 4.4: {MANUAL_MODULE_4_LINKS.get('Тема 4.4','-')}")
+                msg.append(f"- Тема 4.4: {MANUAL_MODULE_4_LINKS.get('Тема 4.4', '-')}")
             if getattr(progress, 'm4_5_start_date', None):
-                msg.append(f"- Тема 4.5: {MANUAL_MODULE_4_LINKS.get('Тема 4.5','-')}")
+                msg.append(f"- Тема 4.5: {MANUAL_MODULE_4_LINKS.get('Тема 4.5', '-')}")
             if getattr(progress, 'm4_mock_exam_start_date', None):
                 msg.append(f"- Мок экзамен: {MANUAL_MODULE_4_LINKS.get('Мок экзамен','-')}")
     # Автотестирование

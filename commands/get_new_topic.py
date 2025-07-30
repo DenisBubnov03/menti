@@ -101,6 +101,8 @@ def get_next_manual_module(progress: ManualProgress) -> int:
     else:
         return 5  # 5 модуль доступен, если все темы 4 модуля начаты и домашняя работа по 4.5 сдана
 
+MANUAL_MODULE_1_LINK = "https://thankful-candy-c57.notion.site/1-20594f774aab81db8392f01309905510?source=copy_link"
+
 MANUAL_MODULE_2_LINKS = {
     "Тема 2.1": "https://thankful-candy-c57.notion.site/2-1-1df94f774aab8113b8d5ecb89cc6db75?source=copy_link",
     "Тема 2.2": "https://thankful-candy-c57.notion.site/2-2-1df94f774aab8184865ef8f5ae3fdc2e?source=copy_link",
@@ -163,6 +165,7 @@ async def handle_manual_direction(update: Update, context, student: Student):
                     link_3_1 = MANUAL_MODULE_3_LINKS.get("Тема 3.1")
                     await update.message.reply_text(
                         f"Ваша новая тема: {topic}\nСсылка: {link_2_3}\n\n"
+                        f"Также открыта тема 2.4!\nСсылка: https://thankful-candy-c57.notion.site/2-4-20594f774aab8197a077ef3921eaf641?source=copy_link"
                         f"Также открыта тема 3.1!\nСсылка: {link_3_1}"
                     )
                     return await back_to_main_menu(update, context)
