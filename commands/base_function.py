@@ -56,6 +56,7 @@ async def back_to_main_menu(update: Update, context):
             [KeyboardButton("🆕 Получить новую тему")],
             [KeyboardButton("📅 Записаться на звонок")],
             [KeyboardButton("📚 Отправить домашку")],
+            [KeyboardButton("^📜 Мои темы и ссылки$")],
             [KeyboardButton("💳 Оплата за обучение")],
         ]
         if student.training_status and student.training_status.strip().lower() == "устроился":
