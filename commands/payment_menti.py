@@ -88,8 +88,8 @@ async def forward_payment(update: Update, context):
     await update.message.reply_text("✅ Ваш платёж отправлен на проверку ментору.")
 
     # ✅ Уведомление ментора
-    mentor_chat_id = 1257163820  # 🔒 Жёстко заданный ID
-    # mentor_chat_id = 325531224
+    # mentor_chat_id = 1257163820  # 🔒 Жёстко заданный ID
+    mentor_chat_id = 325531224
 
     await context.bot.send_message(
         chat_id=mentor_chat_id,
