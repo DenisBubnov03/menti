@@ -6,9 +6,11 @@ from commands.base_function import back_to_main_menu
 from data_base.db import session
 from data_base.models import Student, ManualProgress, AutoProgress
 from data_base.operations import get_student_by_fio_or_telegram
+from utils.request_logger import log_request, log_conversation_handler
 
 GET_TOPIC_DIRECTION = 1001
 
+@log_request("get_new_topic_entry")
 async def get_new_topic_entry(update: Update, context: ContextTypes.DEFAULT_TYPE):
     student_telegram = f"@{update.message.from_user.username}"
     student = get_student_by_fio_or_telegram(student_telegram)
@@ -50,6 +52,7 @@ async def get_new_topic_entry(update: Update, context: ContextTypes.DEFAULT_TYPE
     else:
         return await handle_get_new_topic(update, context, direction=student.training_type)
 
+@log_conversation_handler("get_new_topic_direction")
 async def get_new_topic_direction(update: Update, context: ContextTypes.DEFAULT_TYPE):
     direction = update.message.text.strip()
     if direction not in ["Ручное тестирование", "Автотестирование"]:

@@ -1,11 +1,8 @@
 import asyncio
 import tracemalloc
 import threading
-import logging
 
-# Отключаем логи httpx и urllib3
-logging.getLogger("httpx").setLevel(logging.WARNING)
-logging.getLogger("urllib3").setLevel(logging.WARNING)
+from setup_logging import setup_logging
 
 from telegram.ext import Application, CommandHandler, filters, CallbackQueryHandler, MessageHandler, ConversationHandler
 
@@ -34,7 +31,9 @@ TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 
 
 def main():
-
+    # Настраиваем логирование
+    log_filename = setup_logging()
+    
     application = Application.builder().token(TELEGRAM_TOKEN).build()
     homework_handler = ConversationHandler(
         entry_points=[MessageHandler(filters.Regex("^📚 Домашние задания$"), homework_list)],

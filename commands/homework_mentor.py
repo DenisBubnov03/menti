@@ -7,6 +7,7 @@ from data_base.db import session
 from data_base.models import Homework, Mentor
 from data_base.operations import get_pending_homework, approve_homework, update_homework_status, is_admin
 from data_base.models import Student
+from utils.request_logger import log_request, log_conversation_handler
 
 PROGRESS_FIELD_MAPPING = {
     "Тема 1.4": "m1_homework",
@@ -19,6 +20,7 @@ PROGRESS_FIELD_MAPPING = {
 }
 
 
+@log_request("homework_list")
 async def homework_list(update: Update, context):
     """Ментор смотрит список домашних заданий"""
     homework_lists = await get_pending_homework("@" + update.message.from_user.username)
@@ -45,6 +47,7 @@ async def homework_list(update: Update, context):
     return HOMEWORK_WAITING
 
 
+@log_conversation_handler("check_homework")
 async def check_homework(update: Update, context):
     """Ментор выбирает домашку по ID"""
     hw_id = update.message.text.strip()
@@ -75,6 +78,7 @@ async def check_homework(update: Update, context):
     return "CHECKING"
 
 
+@log_conversation_handler("accept_homework")
 async def accept_homework(update: Update, context):
     """Ментор принимает домашку"""
     comment = update.message.text

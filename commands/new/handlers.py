@@ -8,6 +8,7 @@ from commands.base_function import back_to_main_menu
 from commands.states import SUBMIT_TOPIC_SELECT, SUBMIT_TOPIC_STUDENTS
 from data_base.db import session
 from data_base.models import Student, Mentor, Homework, ManualProgress
+from utils.request_logger import log_request, log_conversation_handler
 from datetime import datetime
 
 TOPIC_FIELD_MAPPING = {
@@ -31,6 +32,7 @@ AUTO_MODULE_FIELD_MAPPING = {
 }
 
 
+@log_request("start_topic_submission")
 async def start_topic_submission(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Выбор темы (уже с модулем)"""
     mentor_tg = "@" + update.message.from_user.username
@@ -62,6 +64,7 @@ async def start_topic_submission(update: Update, context: ContextTypes.DEFAULT_T
         context.user_data["auto_flow"] = False
         return SUBMIT_TOPIC_SELECT
 
+@log_conversation_handler("select_topic")
 async def select_topic(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_input = update.message.text.strip()
     if user_input == "🔙 Вернуться в меню":
@@ -92,6 +95,7 @@ async def select_topic(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Введите Telegram юзернеймы студентов через запятую (например: @user1, @user2):")
         return SUBMIT_TOPIC_STUDENTS
 
+@log_conversation_handler("submit_topic_students")
 async def submit_topic_students(update: Update, context: ContextTypes.DEFAULT_TYPE):
     usernames = [u.strip() for u in update.message.text.split(",")]
     mentor_tg = "@" + update.message.from_user.username

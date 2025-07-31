@@ -9,8 +9,10 @@ from data_base.db import session
 from data_base.models import Student, ManualProgress, AutoProgress
 from commands.get_new_topic import MANUAL_MODULE_2_LINKS, MANUAL_MODULE_3_LINKS, MANUAL_MODULE_4_LINKS, \
     AUTO_MODULE_LINKS, MANUAL_MODULE_1_LINK
+from utils.request_logger import log_request
 
 
+@log_request("start_command")
 async def start_command(update, context):
     message = update.message
     username = str(message.from_user.username)
@@ -58,8 +60,20 @@ async def start_command(update, context):
         mentor = session.query(Mentor).filter(Mentor.telegram == username).first()
         if mentor:
             if not mentor.chat_id:
-                mentor.chat_id = chat_id  # Сохраняем chat_id
-                session.commit()
+                # Обновляем chat_id в отдельной сессии
+                from data_base.db import get_session, close_session
+                update_session = get_session()
+                try:
+                    mentor_update = update_session.query(Mentor).filter(Mentor.id == mentor.id).first()
+                    if mentor_update:
+                        mentor_update.chat_id = chat_id
+                        update_session.commit()
+                        logger.info(f"Updated chat_id for mentor {mentor.id}")
+                except Exception as e:
+                    logger.error(f"Error updating mentor chat_id: {e}")
+                    update_session.rollback()
+                finally:
+                    close_session()
         keyboard = ReplyKeyboardMarkup(
             keyboard=[
                 [KeyboardButton("📚 Домашние задания")],
@@ -80,8 +94,20 @@ async def start_command(update, context):
     if student:
         logger.info(f"Student details: ID={student.id}, FIO={student.fio}, Telegram={student.telegram}")
         if not student.chat_id:
-            student.chat_id = chat_id
-            session.commit()
+            # Обновляем chat_id в отдельной сессии
+            from data_base.db import get_session, close_session
+            update_session = get_session()
+            try:
+                student_update = update_session.query(Student).filter(Student.id == student.id).first()
+                if student_update:
+                    student_update.chat_id = chat_id
+                    update_session.commit()
+                    logger.info(f"Updated chat_id for student {student.id}")
+            except Exception as e:
+                logger.error(f"Error updating chat_id: {e}")
+                update_session.rollback()
+            finally:
+                close_session()
             # ✅ Хардкод менторов
 
         manual_mentor = session.query(Mentor).get(1)  # Ментор по ручному тестированию
@@ -120,6 +146,7 @@ async def start_command(update, context):
         return
 
 
+@log_request("my_topics_and_links")
 async def my_topics_and_links(update: Update, context: ContextTypes.DEFAULT_TYPE):
     student_telegram = f"@{update.message.from_user.username}"
     student = session.query(Student).filter_by(telegram=student_telegram).first()

@@ -1,7 +1,7 @@
 from datetime import datetime
 from decimal import Decimal
 
-from data_base.db import session, Session
+from data_base.db import get_session, close_session, session, Session
 from data_base.models import Student, Mentor, Homework, Payment
 
 
@@ -12,12 +12,20 @@ def is_admin(username):
     
     logger.info(f"is_admin called with username: '{username}'")
     
-    mentor = session.query(Mentor).filter(Mentor.telegram == str(username)).first()
-    if mentor and mentor.is_admin:  # Проверяем поле is_admin
-        logger.info(f"User is admin: {mentor.full_name}")
-        return True
-    logger.info(f"User is not admin")
-    return False
+    session = get_session()
+    try:
+        mentor = session.query(Mentor).filter(Mentor.telegram == str(username)).first()
+        if mentor and mentor.is_admin:  # Проверяем поле is_admin
+            logger.info(f"User is admin: {mentor.full_name}")
+            return True
+        logger.info(f"User is not admin")
+        return False
+    except Exception as e:
+        logger.error(f"Error in is_admin: {e}")
+        session.rollback()
+        return False
+    finally:
+        close_session()
 
 def is_mentor(telegram):
     import logging
@@ -25,12 +33,20 @@ def is_mentor(telegram):
     
     logger.info(f"is_mentor called with telegram: '{telegram}'")
     
-    mentor = session.query(Mentor).filter(Mentor.telegram == str(telegram)).first()
-    if mentor:
-        logger.info(f"User is mentor: {mentor.full_name}")
-    else:
-        logger.info(f"User is not mentor")
-    return mentor is not None
+    session = get_session()
+    try:
+        mentor = session.query(Mentor).filter(Mentor.telegram == str(telegram)).first()
+        if mentor:
+            logger.info(f"User is mentor: {mentor.full_name}")
+        else:
+            logger.info(f"User is not mentor")
+        return mentor is not None
+    except Exception as e:
+        logger.error(f"Error in is_mentor: {e}")
+        session.rollback()
+        return False
+    finally:
+        close_session()
 
 def get_student_by_fio_or_telegram(value):
     """
@@ -41,6 +57,7 @@ def get_student_by_fio_or_telegram(value):
     
     logger.info(f"get_student_by_fio_or_telegram called with value: '{value}'")
     
+    session = get_session()
     try:
         # Проверяем, что value не None и не пустая строка
         if not value:
@@ -60,7 +77,10 @@ def get_student_by_fio_or_telegram(value):
         return student
     except Exception as e:
         logger.error(f"Error in get_student_by_fio_or_telegram: {e}")
+        session.rollback()
         return None
+    finally:
+        close_session()
 
 async def get_pending_homework(mentor_telegram):
     """Функция получения списка домашних заданий для конкретного ментора"""
@@ -79,21 +99,35 @@ async def get_pending_homework(mentor_telegram):
 
 def approve_homework(hw_id):
     """Обновляет статус домашки на "принято" в БД"""
-    hw = session.query(Homework).filter(Homework.id == hw_id).first()
-    if hw:
-        hw.status = "принято"
-        session.commit()
+    session = get_session()
+    try:
+        hw = session.query(Homework).filter(Homework.id == hw_id).first()
+        if hw:
+            hw.status = "принято"
+            session.commit()
+    except Exception as e:
+        session.rollback()
+        raise
+    finally:
+        close_session()
 
 
 def update_homework_status(hw_id, comment):
     """Обновляет статус домашки на 'отклонено' и сохраняет комментарий"""
-    homework = session.query(Homework).filter(Homework.id == hw_id).first()
-    if homework:
-        homework.status = "отклонено"
-        homework.comment = comment  # Добавляем комментарий
-        session.commit()
-        return homework.student.telegram  # Возвращаем Telegram студента
-    return None
+    session = get_session()
+    try:
+        homework = session.query(Homework).filter(Homework.id == hw_id).first()
+        if homework:
+            homework.status = "отклонено"
+            homework.comment = comment  # Добавляем комментарий
+            session.commit()
+            return homework.student.telegram  # Возвращаем Telegram студента
+        return None
+    except Exception as e:
+        session.rollback()
+        raise
+    finally:
+        close_session()
 
 
 
