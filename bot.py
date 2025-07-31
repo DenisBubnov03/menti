@@ -23,7 +23,7 @@ from commands.payment_mentor import reject_payment, show_pending_payments, check
 from commands.student_progress import request_student_progress, show_student_progress
 from commands.states import *
 from commands.get_new_topic import get_new_topic_entry, get_new_topic_direction, GET_TOPIC_DIRECTION
-from commands.homework_notifications import schedule_homework_notifications, schedule_weekly_reports
+# from commands.homework_notifications import schedule_homework_notifications, schedule_weekly_reports
 
 import os
 from dotenv import load_dotenv
