@@ -15,13 +15,26 @@ async def start_command(update, context):
     message = update.message
     username = str(message.from_user.username)
 
+    # Добавляем подробное логирование
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    logger.info(f"=== START COMMAND ===")
+    logger.info(f"Chat ID: {message.chat_id}")
+    logger.info(f"Original username: {message.from_user.username}")
+    logger.info(f"User ID: {message.from_user.id}")
+    logger.info(f"Full name: {message.from_user.full_name}")
+
     # Добавляем @, если его нет
     if not username.startswith("@"):
         username = "@" + username  # ← Переопределяем username
-
+    
+    logger.info(f"Final username: {username}")
     chat_id = message.chat_id  # Получаем chat_id
 
+    logger.info(f"Checking if user is admin...")
     if is_admin(username):  # Проверяем, админ ли это
+        logger.info(f"User is ADMIN")
         keyboard = ReplyKeyboardMarkup(
             keyboard=[
                 [KeyboardButton("💰 Платежи")],
@@ -39,7 +52,9 @@ async def start_command(update, context):
         return
 
     # Проверяем, ментор ли это
+    logger.info(f"Checking if user is mentor...")
     if is_mentor(username):
+        logger.info(f"User is MENTOR")
         mentor = session.query(Mentor).filter(Mentor.telegram == username).first()
         if mentor:
             if not mentor.chat_id:
@@ -58,8 +73,12 @@ async def start_command(update, context):
         return
 
     # Проверяем, студент ли это
+    logger.info(f"Checking if user is student...")
+    logger.info(f"Searching for student with username: {username}")
     student = get_student_by_fio_or_telegram(username)
+    logger.info(f"Student found: {student is not None}")
     if student:
+        logger.info(f"Student details: ID={student.id}, FIO={student.fio}, Telegram={student.telegram}")
         if not student.chat_id:
             student.chat_id = chat_id
             session.commit()

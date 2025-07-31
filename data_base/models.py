@@ -105,6 +105,7 @@ class ManualProgress(Base):
     m4_3_start_date = Column(Date)
     m4_2_4_3_submission_date = Column(Date)
     m4_5_homework = Column(Boolean)
+    m4_mock_exam_passed_date = Column(Date)
     m5_start_date = Column(Date)
 
     def __repr__(self):

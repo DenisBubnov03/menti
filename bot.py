@@ -1,5 +1,11 @@
 import asyncio
 import tracemalloc
+import threading
+import logging
+
+# Отключаем логи httpx и urllib3
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("urllib3").setLevel(logging.WARNING)
 
 from telegram.ext import Application, CommandHandler, filters, CallbackQueryHandler, MessageHandler, ConversationHandler
 
@@ -17,6 +23,7 @@ from commands.payment_mentor import reject_payment, show_pending_payments, check
 from commands.student_progress import request_student_progress, show_student_progress
 from commands.states import *
 from commands.get_new_topic import get_new_topic_entry, get_new_topic_direction, GET_TOPIC_DIRECTION
+from commands.homework_notifications import schedule_homework_notifications, schedule_weekly_reports
 
 import os
 from dotenv import load_dotenv
@@ -162,7 +169,23 @@ def main():
     application.add_handler(homework_handler)
     application.add_handler(homework_submission_handler)
     application.add_handler(CommandHandler("start", start_command))
-    application.add_handler(MessageHandler(filters.TEXT & filters.Regex("^📜 Мои темы и ссылки$"), my_topics_and_links))
+    application.add_handler(MessageHandler(filters.TEXT & filters.Regex("📜 Мои темы и ссылки"), my_topics_and_links))
+    
+    # # Запускаем планировщики уведомлений в отдельных потоках
+    # def run_notification_scheduler():
+    #     asyncio.run(schedule_homework_notifications(application.bot))
+    #
+    # def run_weekly_reports_scheduler():
+    #     asyncio.run(schedule_weekly_reports(application.bot))
+    #
+    # # Запускаем планировщики в фоновых потоках
+    # notification_thread = threading.Thread(target=run_notification_scheduler, daemon=True)
+    # weekly_reports_thread = threading.Thread(target=run_weekly_reports_scheduler, daemon=True)
+    #
+    # notification_thread.start()
+    # weekly_reports_thread.start()
+    
+    print("🚀 Бот запущен! Система уведомлений активирована.")
     application.run_polling()
 
 

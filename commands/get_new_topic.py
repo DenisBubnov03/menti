@@ -296,13 +296,15 @@ async def handle_manual_direction(update: Update, context, student: Student):
         if not (
             progress.m4_1_submission_date and
             progress.m4_2_4_3_submission_date and
-            progress.m4_5_homework
+            progress.m4_5_homework and
+            progress.m4_mock_exam_passed_date
         ):
             await update.message.reply_text(
                 "Чтобы получить 5 модуль, нужно сдать:\n"
                 "- тему 4.1\n"
                 "- темы 4.2 и 4.3\n"
-                "- домашку по теме 4.5"
+                "- домашку по теме 4.5\n"
+                "- мок экзамен по 4 модулю"
             )
             return await back_to_main_menu(update, context)
         if not homework_45:

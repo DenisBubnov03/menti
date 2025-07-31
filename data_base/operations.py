@@ -7,24 +7,59 @@ from data_base.models import Student, Mentor, Homework, Payment
 
 def is_admin(username):
     """Проверяет, является ли пользователь админом"""
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    logger.info(f"is_admin called with username: '{username}'")
+    
     mentor = session.query(Mentor).filter(Mentor.telegram == str(username)).first()
     if mentor and mentor.is_admin:  # Проверяем поле is_admin
+        logger.info(f"User is admin: {mentor.full_name}")
         return True
+    logger.info(f"User is not admin")
     return False
 
 def is_mentor(telegram):
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    logger.info(f"is_mentor called with telegram: '{telegram}'")
+    
     mentor = session.query(Mentor).filter(Mentor.telegram == str(telegram)).first()
+    if mentor:
+        logger.info(f"User is mentor: {mentor.full_name}")
+    else:
+        logger.info(f"User is not mentor")
     return mentor is not None
 
 def get_student_by_fio_or_telegram(value):
     """
     Ищет студента по ФИО или Telegram.
     """
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    logger.info(f"get_student_by_fio_or_telegram called with value: '{value}'")
+    
     try:
-        return session.query(Student).filter(
+        # Проверяем, что value не None и не пустая строка
+        if not value:
+            logger.warning(f"Empty value provided: '{value}'")
+            return None
+            
+        # Ищем студента
+        student = session.query(Student).filter(
             (Student.fio == value) | (Student.telegram == value)
         ).first()
+        
+        if student:
+            logger.info(f"Student found: ID={student.id}, FIO='{student.fio}', Telegram='{student.telegram}'")
+        else:
+            logger.warning(f"No student found for value: '{value}'")
+            
+        return student
     except Exception as e:
+        logger.error(f"Error in get_student_by_fio_or_telegram: {e}")
         return None
 
 async def get_pending_homework(mentor_telegram):

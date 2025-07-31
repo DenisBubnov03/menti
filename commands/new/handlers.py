@@ -18,6 +18,7 @@ TOPIC_FIELD_MAPPING = {
     "Тема 3.3": "m3_3_submission_date",
     "Тема 4.1": "m4_1_submission_date",
     "Тема 4.2 + 4.3": "m4_2_4_3_submission_date",
+    "Мок экзамен 4 модуля": "m4_mock_exam_passed_date",
 }
 
 AUTO_MODULE_FIELD_MAPPING = {
