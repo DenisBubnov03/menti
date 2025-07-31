@@ -1,7 +1,7 @@
 from datetime import datetime
 from decimal import Decimal
 
-from data_base.db import get_session, close_session, session, Session
+from data_base.db import get_session, close_session, Session
 from data_base.models import Student, Mentor, Homework, Payment
 
 
@@ -84,18 +84,25 @@ def get_student_by_fio_or_telegram(value):
 
 async def get_pending_homework(mentor_telegram):
     """Функция получения списка домашних заданий для конкретного ментора"""
-    mentor = session.query(Mentor).filter(Mentor.telegram == mentor_telegram).first()
+    session = get_session()
+    try:
+        mentor = session.query(Mentor).filter(Mentor.telegram == mentor_telegram).first()
 
-    if not mentor:
-        return None
+        if not mentor:
+            return None
 
-    # Фильтруем домашки по mentor_id и статусу "ожидает проверки"
-    homework_list = session.query(Homework).filter(
-        Homework.mentor_id == mentor.id,
-        Homework.status == "ожидает проверки"
-    ).all()
+        # Фильтруем домашки по mentor_id и статусу "ожидает проверки"
+        homework_list = session.query(Homework).filter(
+            Homework.mentor_id == mentor.id,
+            Homework.status == "ожидает проверки"
+        ).all()
 
-    return homework_list
+        return homework_list
+    except Exception as e:
+        session.rollback()
+        raise
+    finally:
+        close_session()
 
 def approve_homework(hw_id):
     """Обновляет статус домашки на "принято" в БД"""
@@ -133,79 +140,121 @@ def update_homework_status(hw_id, comment):
 
 def get_all_mentors():
     """Возвращает список всех менторов"""
-    return session.query(Mentor).all()
+    session = get_session()
+    try:
+        return session.query(Mentor).all()
+    except Exception as e:
+        session.rollback()
+        raise
+    finally:
+        close_session()
 
 
 def get_mentor_chat_id(mentor_username):
     """Возвращает chat_id ментора по его Telegram username"""
-    mentor = session.query(Mentor).filter(Mentor.telegram == mentor_username).first()
+    session = get_session()
+    try:
+        mentor = session.query(Mentor).filter(Mentor.telegram == mentor_username).first()
 
-    if not mentor:
-        return None
+        if not mentor:
+            return None
 
-    return mentor.chat_id
+        return mentor.chat_id
+    except Exception as e:
+        session.rollback()
+        raise
+    finally:
+        close_session()
 
 def update_student_payment(student_id, amount, mentor_id, comment="Доплата"):
     """Добавляет платеж студента в таблицу payments и обновляет сумму в students"""
-    student = session.query(Student).filter(Student.id == student_id).first()
-    mentor = session.query(Mentor).filter(Mentor.id == mentor_id).first()
-
-    if not student:
-        raise ValueError("❌ Ошибка: студент не найден в базе.")
-    if not mentor:
-        raise ValueError("❌ Ошибка: ментор не найден в базе.")
-    if amount <= 0:
-        raise ValueError("❌ Ошибка: сумма платежа должна быть больше 0.")
-
+    session = get_session()
     try:
-        current_paid = Decimal(student.payment_amount or 0)
-        new_total_paid = current_paid + Decimal(str(amount))
-        #
-        # # ❌ Проверяем превышение стоимости
-        # if new_total_paid > student.total_cost:
-        #     raise ValueError(
-        #         f"❌ Ошибка: сумма всех платежей ({new_total_paid} руб.) "
-        #         f"превышает стоимость обучения ({student.total_cost} руб.)."
-        #     )
+        student = session.query(Student).filter(Student.id == student_id).first()
+        mentor = session.query(Mentor).filter(Mentor.id == mentor_id).first()
 
-        # ✅ Создаем новый платеж
-        new_payment = Payment(
-            student_id=student.id,
-            mentor_id=mentor.id,
-            amount=Decimal(str(amount)),
-            payment_date=datetime.now().date(),
-            comment=comment
-        )
-        session.add(new_payment)
+        if not student:
+            raise ValueError("❌ Ошибка: студент не найден в базе.")
+        if not mentor:
+            raise ValueError("❌ Ошибка: ментор не найден в базе.")
+        if amount <= 0:
+            raise ValueError("❌ Ошибка: сумма платежа должна быть больше 0.")
 
-        # ✅ Обновляем `payment_amount`
-        student.payment_amount = new_total_paid
+        try:
+            current_paid = Decimal(student.payment_amount or 0)
+            new_total_paid = current_paid + Decimal(str(amount))
+            #
+            # # ❌ Проверяем превышение стоимости
+            # if new_total_paid > student.total_cost:
+            #     raise ValueError(
+            #         f"❌ Ошибка: сумма всех платежей ({new_total_paid} руб.) "
+            #         f"превышает стоимость обучения ({student.total_cost} руб.)."
+            #     )
 
-        # ✅ Обновляем статус оплаты
-        student.fully_paid = "Да" if new_total_paid >= student.total_cost else "Нет"
+            # ✅ Создаем новый платеж
+            new_payment = Payment(
+                student_id=student.id,
+                mentor_id=mentor.id,
+                amount=Decimal(str(amount)),
+                payment_date=datetime.now().date(),
+                comment=comment
+            )
+            session.add(new_payment)
 
-        session.commit()
-        print(f"✅ DEBUG: Платёж {amount} руб. записан в payments!")
+            # ✅ Обновляем `payment_amount`
+            student.payment_amount = new_total_paid
+
+            # ✅ Обновляем статус оплаты
+            student.fully_paid = "Да" if new_total_paid >= student.total_cost else "Нет"
+
+            session.commit()
+            print(f"✅ DEBUG: Платёж {amount} руб. записан в payments!")
+        except Exception as e:
+            session.rollback()
+            print(f"❌ DEBUG: Ошибка при записи платежа: {e}")
+            raise
     except Exception as e:
         session.rollback()
-        print(f"❌ DEBUG: Ошибка при записи платежа: {e}")
         raise
+    finally:
+        close_session()
 
 
 
 def get_all_students():
     """Возвращает список всех студентов из БД"""
-    return session.query(Student).all()
+    session = get_session()
+    try:
+        return session.query(Student).all()
+    except Exception as e:
+        session.rollback()
+        raise
+    finally:
+        close_session()
 
 def get_student_chat_id(student_telegram):
     """Возвращает chat_id студента по его username"""
-    student = session.query(Student).filter(Student.telegram == student_telegram).first()
-    return student.chat_id if student else None
+    session = get_session()
+    try:
+        student = session.query(Student).filter(Student.telegram == student_telegram).first()
+        return student.chat_id if student else None
+    except Exception as e:
+        session.rollback()
+        raise
+    finally:
+        close_session()
 
 def get_student_id(student_telegram):
     """Возвращает chat_id студента по его username"""
-    student = session.query(Student).filter(Student.telegram == student_telegram).first()
-    return student.id if student else None
+    session = get_session()
+    try:
+        student = session.query(Student).filter(Student.telegram == student_telegram).first()
+        return student.id if student else None
+    except Exception as e:
+        session.rollback()
+        raise
+    finally:
+        close_session()
 
 def get_mentor_by_student(student_telegram):
     """
@@ -213,13 +262,20 @@ def get_mentor_by_student(student_telegram):
     :param student_telegram: Telegram студента (@username)
     :return: Объект ментора или None, если не найден.
     """
-    student = session.query(Student).filter_by(telegram=student_telegram).first()
+    session = get_session()
+    try:
+        student = session.query(Student).filter_by(telegram=student_telegram).first()
 
-    if not student or not student.mentor_id:
-        return None  # Если студент не найден или у него нет ментора
+        if not student or not student.mentor_id:
+            return None  # Если студент не найден или у него нет ментора
 
-    mentor = session.query(Mentor).filter_by(id=student.mentor_id).first()
-    return mentor
+        mentor = session.query(Mentor).filter_by(id=student.mentor_id).first()
+        return mentor
+    except Exception as e:
+        session.rollback()
+        raise
+    finally:
+        close_session()
 
 def get_student_by_id(student_id: int) -> Student:
     """
@@ -227,12 +283,25 @@ def get_student_by_id(student_id: int) -> Student:
     :param student_id: ID студента
     :return: Объект Student или None, если студент не найден
     """
-    with Session() as session:  # Открываем сессию SQLAlchemy
+    session = get_session()
+    try:
         student = session.query(Student).filter_by(id=student_id).first()
         return student
+    except Exception as e:
+        session.rollback()
+        raise
+    finally:
+        close_session()
 
 def get_mentor_by_direction(direction: str):
     """
     Возвращает ментора по направлению (например, 'Автотестирование').
     """
-    return session.query(Mentor).filter_by(direction=direction).first()
+    session = get_session()
+    try:
+        return session.query(Mentor).filter_by(direction=direction).first()
+    except Exception as e:
+        session.rollback()
+        raise
+    finally:
+        close_session()
