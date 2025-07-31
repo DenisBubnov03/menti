@@ -18,13 +18,26 @@ from commands.states import PAYMENT_WAITING
 
 async def request_payment(update: Update, context):
     """Студент нажимает 'Оплата за обучение'"""
-    await update.message.reply_text("📩 Отправьте чек (фото или документ) и укажите сумму платежа (например, '15000').")
+    keyboard = ReplyKeyboardMarkup(
+        [[KeyboardButton("🔙 Отменить")]],
+        resize_keyboard=True,
+        one_time_keyboard=True
+    )
+    await update.message.reply_text(
+        "📩 Отправьте чек (фото или документ) и укажите сумму платежа (например, '15000').",
+        reply_markup=keyboard
+    )
     return PAYMENT_WAITING
 
 
 async def forward_payment(update: Update, context):
     student_telegram = f"@{update.message.from_user.username}"
     message = update.message
+
+    # Проверяем кнопку отмены
+    if message.text and message.text.strip().lower() in ["отменить", "🔙 отменить"]:
+        await update.message.reply_text("❌ Оплата отменена.")
+        return await back_to_main_menu(update, context)
 
     file_id = None
     payment_text = None
@@ -112,6 +125,11 @@ async def forward_payment(update: Update, context):
 async def forward_commission_payment(update: Update, context):
     student_telegram = f"@{update.message.from_user.username}"
     message = update.message
+
+    # Проверяем кнопку отмены
+    if message.text and message.text.strip().lower() in ["отменить", "🔙 отменить"]:
+        await update.message.reply_text("❌ Выплата комиссии отменена.")
+        return await back_to_main_menu(update, context)
 
     file_id = None
     payment_text = None
@@ -213,11 +231,17 @@ async def request_commission_payment(update: Update, context):
         context.user_data["commission_payment"] = True
         context.user_data["commission_remaining"] = remaining
 
+        keyboard = ReplyKeyboardMarkup(
+            [[KeyboardButton("🔙 Отменить")]],
+            resize_keyboard=True,
+            one_time_keyboard=True
+        )
         await update.message.reply_text(
             f"💸 Общая комиссия: {total_commission} руб.\n"
             f"✅ Выплачено: {already_paid} руб.\n"
             f"📌 Осталось выплатить: {remaining} руб.\n\n"
-            "Пожалуйста, отправьте чек и сумму комиссии:"
+            "Пожалуйста, отправьте чек и сумму комиссии:",
+            reply_markup=keyboard
         )
         return PAYMENT_WAITING
 

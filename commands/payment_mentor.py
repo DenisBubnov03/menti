@@ -34,9 +34,13 @@ async def show_pending_payments(update: Update, context: ContextTypes.DEFAULT_TY
     # Сохраняем список в context
     context.user_data["pending_payment_ids"] = [p.id for p in pending_payments]
 
+    keyboard = ReplyKeyboardMarkup(
+        [[KeyboardButton("🔙 В главное меню")]],
+        resize_keyboard=True
+    )
     await update.message.reply_text(
         message,
-        reply_markup=ReplyKeyboardMarkup([[KeyboardButton("🔙 В главное меню")]], resize_keyboard=True)
+        reply_markup=keyboard
     )
     return PAYMENT_CONFIRMATION
 
@@ -64,7 +68,7 @@ async def check_payment_by_id(update: Update, context: ContextTypes.DEFAULT_TYPE
     context.user_data["amount"] = float(payment.amount)
 
     keyboard = ReplyKeyboardMarkup(
-        [["✅ Подтвердить платёж"], ["❌ Отклонить платёж"]],
+        [["✅ Подтвердить платёж"], ["❌ Отклонить платёж"], ["🔙 Отменить"]],
         resize_keyboard=True
     )
 
@@ -77,6 +81,11 @@ async def check_payment_by_id(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 
 async def confirm_payment(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    # Проверяем кнопку отмены
+    if update.message.text and update.message.text.strip().lower() in ["отменить", "🔙 отменить"]:
+        await update.message.reply_text("❌ Подтверждение платежа отменено.")
+        return await back_to_main_menu(update, context)
+    
     payment_id = context.user_data.get("payment_id")
     student_id = context.user_data.get("student_id")
     amount = context.user_data.get("amount")
@@ -117,6 +126,11 @@ async def confirm_payment(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def reject_payment(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    # Проверяем кнопку отмены
+    if update.message.text and update.message.text.strip().lower() in ["отменить", "🔙 отменить"]:
+        await update.message.reply_text("❌ Отклонение платежа отменено.")
+        return await back_to_main_menu(update, context)
+    
     payment_id = context.user_data.get("payment_id")
     amount = context.user_data.get("amount")
     student_id = context.user_data.get("student_id")
