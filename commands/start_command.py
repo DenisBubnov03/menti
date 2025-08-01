@@ -148,7 +148,19 @@ async def start_command(update, context):
         
         for attempt in range(max_retries):
             try:
-                await update.message.reply_text(f"🔹 Привет, {student.fio}! Вы вошли как ученик.{mentor_info}",
+                # Логируем для отладки
+                logger.info(f"DEBUG: student={student}, type={type(student)}")
+                logger.info(f"DEBUG: student.fio={getattr(student, 'fio', None)}, type={type(getattr(student, 'fio', None))}")
+
+                # Исправление: если student — кортеж, берём первый элемент
+                if isinstance(student, tuple):
+                    fio_value = student[0]
+                elif hasattr(student, 'fio'):
+                    fio_value = student.fio
+                else:
+                    fio_value = str(student)
+
+                await update.message.reply_text(f"🔹 Привет, {fio_value}! Вы вошли как ученик.{mentor_info}",
                                                 reply_markup=keyboard)
                 return
             except Exception as e:

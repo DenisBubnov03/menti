@@ -131,7 +131,14 @@ async def schedule_call_time(update: Update, context):
     call_date_time = f"{context.user_data['call_date']} {time_text}"
 
     # Записываем событие в Google Calendar (или просто сохраняем)
-    create_event(student.fio, student_telegram, call_date_time)
+    try:
+        event_id, event_date_time = create_event(student.fio, student_telegram, call_date_time)
+    except Exception as e:
+        # Если не удалось создать событие в календаре, продолжаем без него
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.warning(f"Не удалось создать событие в календаре: {e}")
+        event_id = None
 
     await update.message.reply_text(
         f"✅ Запись на звонок подтверждена!\n"
