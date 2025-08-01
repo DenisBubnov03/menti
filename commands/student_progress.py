@@ -89,6 +89,7 @@ async def get_student_progress_info(student):
     info = f"📊 Информация о студенте\n\n"
     info += f"👤 ФИО: {student.fio}\n"
     info += f"📱 Telegram: {student.telegram}\n"
+    info += f"Договор подписан: {'Да' if student.contract_signed else 'Нет'}",
     info += f"📅 Дата начала обучения: {student.start_date.strftime('%d.%m.%Y') if student.start_date else 'Не указана'}\n"
     info += f"🎯 Тип обучения: {student.training_type or 'Не указан'}\n"
     info += f"📈 Статус обучения: {student.training_status or 'Не указан'}\n"
