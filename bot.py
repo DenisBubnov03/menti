@@ -5,6 +5,7 @@ import threading
 from setup_logging import setup_logging
 
 from telegram.ext import Application, CommandHandler, filters, CallbackQueryHandler, MessageHandler, ConversationHandler
+from telegram.error import TimedOut, NetworkError, RetryAfter
 
 from commands.call_notifications import run_scheduler, show_mentor_calls
 from commands.call_scheduling import request_call, schedule_call_date, schedule_call_time, handle_direction_choice
@@ -34,7 +35,62 @@ def main():
     # Настраиваем логирование
     log_filename = setup_logging()
     
+    # Создаем приложение с настройками таймаута
     application = Application.builder().token(TELEGRAM_TOKEN).build()
+    
+    # Настраиваем таймауты для HTTP запросов
+    application.bot._request._client.timeout = 30.0  # Увеличиваем таймаут до 30 секунд
+    
+    # Добавляем обработчик ошибок
+    async def error_handler(update, context):
+        """Обработчик ошибок для предотвращения падения бота"""
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        if isinstance(context.error, TimedOut):
+            logger.warning(f"⚠️ Таймаут при обработке запроса: {context.error}")
+            try:
+                # Пытаемся отправить сообщение об ошибке пользователю
+                if update and update.effective_message:
+                    await update.effective_message.reply_text(
+                        "⏰ Произошла временная ошибка. Пожалуйста, попробуйте еще раз через несколько секунд."
+                    )
+            except Exception as e:
+                logger.error(f"Не удалось отправить сообщение об ошибке: {e}")
+                
+        elif isinstance(context.error, NetworkError):
+            logger.warning(f"⚠️ Ошибка сети: {context.error}")
+            try:
+                if update and update.effective_message:
+                    await update.effective_message.reply_text(
+                        "🌐 Проблема с подключением. Пожалуйста, попробуйте позже."
+                    )
+            except Exception as e:
+                logger.error(f"Не удалось отправить сообщение об ошибке: {e}")
+                
+        elif isinstance(context.error, RetryAfter):
+            logger.warning(f"⚠️ Превышен лимит запросов: {context.error}")
+            try:
+                if update and update.effective_message:
+                    await update.effective_message.reply_text(
+                        "🚫 Слишком много запросов. Пожалуйста, подождите немного."
+                    )
+            except Exception as e:
+                logger.error(f"Не удалось отправить сообщение об ошибке: {e}")
+                
+        else:
+            logger.error(f"❌ Неожиданная ошибка: {context.error}")
+            try:
+                if update and update.effective_message:
+                    await update.effective_message.reply_text(
+                        "❌ Произошла ошибка. Пожалуйста, попробуйте позже или обратитесь к администратору."
+                    )
+            except Exception as e:
+                logger.error(f"Не удалось отправить сообщение об ошибке: {e}")
+    
+    # Регистрируем обработчик ошибок
+    application.add_error_handler(error_handler)
+    
     homework_handler = ConversationHandler(
         entry_points=[MessageHandler(filters.Regex("^📚 Домашние задания$"), homework_list)],
         states={

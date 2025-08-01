@@ -141,9 +141,35 @@ async def start_command(update, context):
             keyboard_buttons.append([KeyboardButton("💸 Выплата комиссии")])
 
         keyboard = ReplyKeyboardMarkup(keyboard_buttons, resize_keyboard=True)
-        await update.message.reply_text(f"🔹 Привет, {student.fio}! Вы вошли как ученик.{mentor_info}",
-                                        reply_markup=keyboard)
-        return
+        
+        # Добавляем retry логику для отправки сообщения
+        max_retries = 3
+        retry_delay = 1.0
+        
+        for attempt in range(max_retries):
+            try:
+                await update.message.reply_text(f"🔹 Привет, {student.fio}! Вы вошли как ученик.{mentor_info}",
+                                                reply_markup=keyboard)
+                return
+            except Exception as e:
+                if attempt < max_retries - 1:
+                    import asyncio
+                    import logging
+                    logger = logging.getLogger(__name__)
+                    logger.warning(f"Попытка {attempt + 1} отправки сообщения не удалась: {e}. Повтор через {retry_delay}с")
+                    await asyncio.sleep(retry_delay)
+                    retry_delay *= 2  # Экспоненциальная задержка
+                else:
+                    # Последняя попытка не удалась
+                    import logging
+                    logger = logging.getLogger(__name__)
+                    logger.error(f"Не удалось отправить сообщение после {max_retries} попыток: {e}")
+                    # Пытаемся отправить простое сообщение без клавиатуры
+                    try:
+                        await update.message.reply_text("🔹 Привет! Произошла ошибка при загрузке меню. Попробуйте еще раз.")
+                    except:
+                        pass  # Если и это не работает, просто игнорируем
+                    return
 
 
 @log_request("my_topics_and_links")

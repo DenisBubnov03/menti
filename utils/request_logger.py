@@ -1,11 +1,45 @@
 import logging
 import functools
 import time
+import asyncio
 from datetime import datetime
 from telegram import Update
 from telegram.ext import ContextTypes
+from telegram.error import TimedOut, NetworkError, RetryAfter
 
 logger = logging.getLogger(__name__)
+
+def retry_on_timeout(max_retries=3, base_delay=1.0):
+    """
+    Декоратор для повторных попыток при таймаутах
+    
+    Args:
+        max_retries: Максимальное количество попыток
+        base_delay: Базовая задержка между попытками
+    """
+    def decorator(func):
+        @functools.wraps(func)
+        async def wrapper(*args, **kwargs):
+            last_exception = None
+            
+            for attempt in range(max_retries):
+                try:
+                    return await func(*args, **kwargs)
+                except (TimedOut, NetworkError, RetryAfter) as e:
+                    last_exception = e
+                    if attempt < max_retries - 1:
+                        delay = base_delay * (2 ** attempt)  # Экспоненциальная задержка
+                        logger.warning(f"Попытка {attempt + 1} не удалась ({type(e).__name__}): {e}. Повтор через {delay}с")
+                        await asyncio.sleep(delay)
+                    else:
+                        logger.error(f"Все {max_retries} попыток не удались. Последняя ошибка: {e}")
+                        raise last_exception
+                except Exception as e:
+                    # Для других ошибок не делаем повторные попытки
+                    raise e
+                    
+        return wrapper
+    return decorator
 
 def log_request(func_name: str = None):
     """
