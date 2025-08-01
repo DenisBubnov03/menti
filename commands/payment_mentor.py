@@ -29,7 +29,20 @@ async def show_pending_payments(update: Update, context: ContextTypes.DEFAULT_TY
     for p in pending_payments:
         # Получаем информацию о студенте
         student = session.query(Student).filter_by(id=p.student_id).first()
-        student_telegram = student.telegram if student else f"ID:{p.student_id}"
+        
+        # Исправление: проверяем, что student.telegram — строка
+        if student and hasattr(student, 'telegram'):
+            if isinstance(student.telegram, tuple):
+                student_telegram = student.telegram[0]  # Берём первый элемент кортежа
+            else:
+                student_telegram = student.telegram
+            
+            # Проверяем, что telegram не пустой
+            if not student_telegram or student_telegram.strip() in [".", ""]:
+                student_telegram = f"ID:{p.student_id}"
+        else:
+            student_telegram = f"ID:{p.student_id}"
+            
         message += f"🆔 ID: {p.id}, 👨‍🎓 Студент {student_telegram}, 💵 {p.amount} руб., 📅 {p.payment_date}\n"
 
     message += "\n✏ Введите ID платежа, чтобы подтвердить или отклонить."
@@ -77,7 +90,19 @@ async def check_payment_by_id(update: Update, context: ContextTypes.DEFAULT_TYPE
 
     # Получаем информацию о студенте
     student = session.query(Student).filter_by(id=payment.student_id).first()
-    student_telegram = student.telegram if student else f"ID:{payment.student_id}"
+    
+    # Исправление: проверяем, что student.telegram — строка
+    if student and hasattr(student, 'telegram'):
+        if isinstance(student.telegram, tuple):
+            student_telegram = student.telegram[0]  # Берём первый элемент кортежа
+        else:
+            student_telegram = student.telegram
+        
+        # Проверяем, что telegram не пустой
+        if not student_telegram or student_telegram.strip() in [".", ""]:
+            student_telegram = f"ID:{payment.student_id}"
+    else:
+        student_telegram = f"ID:{payment.student_id}"
     
     await update.message.reply_text(
         f"🆔 Платёж {payment.id} на сумму {payment.amount:.2f} руб.\n"

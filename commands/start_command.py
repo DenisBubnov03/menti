@@ -160,6 +160,12 @@ async def start_command(update, context):
                 else:
                     fio_value = str(student)
 
+                # Проверяем, что ФИО не пустое и не точка
+                if not fio_value or fio_value.strip() in [".", ""]:
+                    fio_value = "Студент"  # Используем дефолтное значение
+                else:
+                    fio_value = fio_value.strip()  # Убираем лишние пробелы
+
                 await update.message.reply_text(f"🔹 Привет, {fio_value}! Вы вошли как ученик.{mentor_info}",
                                                 reply_markup=keyboard)
                 return
