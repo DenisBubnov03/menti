@@ -27,7 +27,10 @@ async def show_pending_payments(update: Update, context: ContextTypes.DEFAULT_TY
 
     message = "💰 Платежи, ожидающие подтверждения:\n\n"
     for p in pending_payments:
-        message += f"🆔 ID: {p.id}, 👨‍🎓 Студент ID {p.student_id}, 💵 {p.amount} руб., 📅 {p.payment_date}\n"
+        # Получаем информацию о студенте
+        student = session.query(Student).filter_by(id=p.student_id).first()
+        student_telegram = student.telegram if student else f"ID:{p.student_id}"
+        message += f"🆔 ID: {p.id}, 👨‍🎓 Студент {student_telegram}, 💵 {p.amount} руб., 📅 {p.payment_date}\n"
 
     message += "\n✏ Введите ID платежа, чтобы подтвердить или отклонить."
 
@@ -72,9 +75,13 @@ async def check_payment_by_id(update: Update, context: ContextTypes.DEFAULT_TYPE
         resize_keyboard=True
     )
 
+    # Получаем информацию о студенте
+    student = session.query(Student).filter_by(id=payment.student_id).first()
+    student_telegram = student.telegram if student else f"ID:{payment.student_id}"
+    
     await update.message.reply_text(
         f"🆔 Платёж {payment.id} на сумму {payment.amount:.2f} руб.\n"
-        f"Студент ID: {payment.student_id}\n\nВыберите действие:",
+        f"Студент: {student_telegram}\n\nВыберите действие:",
         reply_markup=keyboard
     )
     return "PAYMENT_DECISION"
