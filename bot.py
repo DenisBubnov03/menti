@@ -38,8 +38,23 @@ def main():
     # Создаем приложение с настройками таймаута
     application = Application.builder().token(TELEGRAM_TOKEN).build()
     
-    # Настраиваем таймауты для HTTP запросов
-    application.bot._request._client.timeout = 30.0  # Увеличиваем таймаут до 30 секунд
+    # Настраиваем таймауты для HTTP запросов (исправлено для новых версий)
+    try:
+        # Для новых версий python-telegram-bot
+        application.bot._request._client.timeout = 30.0
+    except AttributeError:
+        try:
+            # Альтернативный способ для разных версий
+            application.bot._request.timeout = 30.0
+        except AttributeError:
+            try:
+                # Еще один способ для некоторых версий
+                application.bot._request._client._client.timeout = 30.0
+            except AttributeError:
+                # Если не удается установить таймаут, логируем предупреждение
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.warning("Не удалось установить таймаут HTTP запросов. Используются настройки по умолчанию.")
     
     # Добавляем обработчик ошибок
     async def error_handler(update, context):
@@ -47,46 +62,31 @@ def main():
         import logging
         logger = logging.getLogger(__name__)
         
-        if isinstance(context.error, TimedOut):
-            logger.warning(f"⚠️ Таймаут при обработке запроса: {context.error}")
-            try:
-                # Пытаемся отправить сообщение об ошибке пользователю
-                if update and update.effective_message:
+        # Логируем ошибку
+        logger.error(f"❌ Ошибка в боте: {context.error}")
+        
+        # Пытаемся отправить сообщение пользователю только если это возможно
+        try:
+            if update and update.effective_message:
+                if isinstance(context.error, TimedOut):
                     await update.effective_message.reply_text(
                         "⏰ Произошла временная ошибка. Пожалуйста, попробуйте еще раз через несколько секунд."
                     )
-            except Exception as e:
-                logger.error(f"Не удалось отправить сообщение об ошибке: {e}")
-                
-        elif isinstance(context.error, NetworkError):
-            logger.warning(f"⚠️ Ошибка сети: {context.error}")
-            try:
-                if update and update.effective_message:
+                elif isinstance(context.error, NetworkError):
                     await update.effective_message.reply_text(
                         "🌐 Проблема с подключением. Пожалуйста, попробуйте позже."
                     )
-            except Exception as e:
-                logger.error(f"Не удалось отправить сообщение об ошибке: {e}")
-                
-        elif isinstance(context.error, RetryAfter):
-            logger.warning(f"⚠️ Превышен лимит запросов: {context.error}")
-            try:
-                if update and update.effective_message:
+                elif isinstance(context.error, RetryAfter):
                     await update.effective_message.reply_text(
                         "🚫 Слишком много запросов. Пожалуйста, подождите немного."
                     )
-            except Exception as e:
-                logger.error(f"Не удалось отправить сообщение об ошибке: {e}")
-                
-        else:
-            logger.error(f"❌ Неожиданная ошибка: {context.error}")
-            try:
-                if update and update.effective_message:
+                else:
                     await update.effective_message.reply_text(
                         "❌ Произошла ошибка. Пожалуйста, попробуйте позже или обратитесь к администратору."
                     )
-            except Exception as e:
-                logger.error(f"Не удалось отправить сообщение об ошибке: {e}")
+        except Exception as e:
+            logger.error(f"Не удалось отправить сообщение об ошибке: {e}")
+            # Не поднимаем исключение дальше, чтобы бот не падал
     
     # Регистрируем обработчик ошибок
     application.add_error_handler(error_handler)
