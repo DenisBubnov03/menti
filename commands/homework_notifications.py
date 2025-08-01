@@ -4,8 +4,10 @@ from data_base.db import session
 from data_base.models import Homework, Student, Mentor
 import asyncio
 import logging
-import os
 from dotenv import load_dotenv
+import sys
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 load_dotenv()
 # Настройка логирования
