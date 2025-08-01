@@ -119,12 +119,44 @@ async def start_command(update, context):
 
         if training_type == "фуллстек":
             mentor_info = "\n👨‍🏫 Менторы для ваших направлений:\n"
-            mentor_info += f"💼 Ручное тестирование: {manual_mentor.full_name if manual_mentor else 'Не назначен'} {manual_mentor.telegram if manual_mentor else ''}\n"
-            mentor_info += f"💻 Автотестирование: {auto_mentor.full_name if auto_mentor else 'Не назначен'} {auto_mentor.telegram if auto_mentor else ''}"
+            
+            # Исправление: проверяем telegram менторов
+            manual_telegram = ""
+            if manual_mentor and hasattr(manual_mentor, 'telegram'):
+                if isinstance(manual_mentor.telegram, tuple):
+                    manual_telegram = manual_mentor.telegram[0]
+                else:
+                    manual_telegram = manual_mentor.telegram
+            
+            auto_telegram = ""
+            if auto_mentor and hasattr(auto_mentor, 'telegram'):
+                if isinstance(auto_mentor.telegram, tuple):
+                    auto_telegram = auto_mentor.telegram[0]
+                else:
+                    auto_telegram = auto_mentor.telegram
+            
+            mentor_info += f"💼 Ручное тестирование: {manual_mentor.full_name if manual_mentor else 'Не назначен'} {manual_telegram}\n"
+            mentor_info += f"💻 Автотестирование: {auto_mentor.full_name if auto_mentor else 'Не назначен'} {auto_telegram}"
         elif training_type == "ручное тестирование":
-            mentor_info = f"\n👨‍🏫 Ваш ментор по ручному тестированию: {mentor.full_name if mentor else 'Не назначен'} {mentor.telegram if mentor else ''}"
+            # Исправление: проверяем telegram ментора
+            mentor_telegram = ""
+            if mentor and hasattr(mentor, 'telegram'):
+                if isinstance(mentor.telegram, tuple):
+                    mentor_telegram = mentor.telegram[0]
+                else:
+                    mentor_telegram = mentor.telegram
+            
+            mentor_info = f"\n👨‍🏫 Ваш ментор по ручному тестированию: {mentor.full_name if mentor else 'Не назначен'} {mentor_telegram}"
         elif training_type == "автотестирование":
-            mentor_info = f"\n👨‍🏫 Ваш ментор по автотестированию: {auto_mentor.full_name if mentor else 'Не назначен'} {auto_mentor.telegram if mentor else ''}"
+            # Исправление: проверяем telegram ментора
+            auto_telegram = ""
+            if auto_mentor and hasattr(auto_mentor, 'telegram'):
+                if isinstance(auto_mentor.telegram, tuple):
+                    auto_telegram = auto_mentor.telegram[0]
+                else:
+                    auto_telegram = auto_mentor.telegram
+            
+            mentor_info = f"\n👨‍🏫 Ваш ментор по автотестированию: {auto_mentor.full_name if auto_mentor else 'Не назначен'} {auto_telegram}"
         else:
             mentor_info = "\n⚠ Обратите внимание: У вас не указан тип обучения."
 
