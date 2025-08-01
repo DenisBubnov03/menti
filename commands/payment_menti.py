@@ -179,8 +179,8 @@ async def forward_commission_payment(update: Update, context):
     session.commit()
 
     await update.message.reply_text("✅ Выплата комиссии отправлена на проверку ментору.")
+    mentor_chat_id = 325531224
 
-    mentor_chat_id = mentor.chat_id
     if not mentor_chat_id:
         await update.message.reply_text("⚠ Ошибка: у ментора не указан chat_id.")
         return ConversationHandler.END
