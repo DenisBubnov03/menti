@@ -289,13 +289,27 @@ async def handle_manual_direction(update: Update, context, student: Student):
         #         "https://thankful-candy-c57.notion.site/5-20594f774aab81518d87db6edddd068e?source=copy_link"
         #     )
         # return await back_to_main_menu(update, context)
+        
+        # Если все темы 4 модуля уже выданы, но не сдана домашка 4.5
+        if not progress.m4_5_homework:
+            await update.message.reply_text("Чтобы получить 5 модуль, отправьте домашку по теме 4.5!")
+            return await back_to_main_menu(update, context)
+        else:
+            await update.message.reply_text("Все темы 4 модуля уже выданы. Сдайте домашку по теме 4.5 для получения 5 модуля.")
+            return await back_to_main_menu(update, context)
     # --- Конец новой логики ---
     # --- Новая логика для 5 модуля ---
     if next_module == 5:
         progress = session.query(ManualProgress).filter_by(student_id=student.id).first()
         from data_base.models import Homework
         homework_45 = session.query(Homework).filter_by(student_id=student.id, topic="Тема 4.5").first()
-        # Явная проверка сдачи всех тем 4 модуля
+        
+        # Сначала проверяем домашку 4.5
+        if not homework_45:
+            await update.message.reply_text("Чтобы получить 5 модуль, обязательно отправьте домашку по теме 4.5!")
+            return await back_to_main_menu(update, context)
+        
+        # Потом проверяем остальные условия
         if not (
             progress.m4_1_submission_date and
             progress.m4_2_4_3_submission_date and
@@ -303,21 +317,14 @@ async def handle_manual_direction(update: Update, context, student: Student):
             progress.m4_mock_exam_passed_date
         ):
             await update.message.reply_text(
-                "Чтобы получить 5 модуль, нужно сдать:\n"
-                "- тему 4.1\n"
-                "- темы 4.2 и 4.3\n"
-                "- домашку по теме 4.5\n"
-                "- мок экзамен по 4 модулю"
+                "Чтобы получить 5 модуль, нужно:\n"
+                "- сдать тему 4.1\n"
+                "- сдать темы 4.2 и 4.3\n"
+                "- отправить домашку по теме 4.5\n"
+                "- сдать мок экзамен по 4 модулю"
             )
             return await back_to_main_menu(update, context)
-        if not homework_45:
-            await update.message.reply_text(
-                f"DEBUG: m4_1_submission_date={progress.m4_1_submission_date}, "
-                f"m4_2_4_3_submission_date={progress.m4_2_4_3_submission_date}, "
-                f"m4_5_homework={progress.m4_5_homework}"
-            )
-            await update.message.reply_text("Чтобы получить 5 модуль, обязательно отправьте домашку по теме 4.5!")
-            return await back_to_main_menu(update, context)
+        
         # Проставляем дату получения 5 модуля
         progress.m5_start_date = datetime.now().date()
         session.commit()
