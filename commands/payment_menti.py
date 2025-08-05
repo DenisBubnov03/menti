@@ -210,7 +210,22 @@ async def request_commission_payment(update: Update, context):
     student_telegram = "@" + update.message.from_user.username
     student = session.query(Student).filter(Student.telegram == student_telegram).first()
 
-    if not student or not student.commission:
+    if not student:
+        await update.message.reply_text("❌ Вы не зарегистрированы как студент!")
+        return ConversationHandler.END
+
+    # Проверяем статус обучения
+    training_status = student.training_status.strip().lower() if student.training_status else ""
+    
+    if training_status != "устроился":
+        await update.message.reply_text(
+            "❌ Выплата комиссии доступна только после трудоустройства!\n\n"
+            f"Ваш текущий статус: {student.training_status or 'Не указан'}\n"
+            "Обратитесь к ментору для обновления статуса после трудоустройства."
+        )
+        return ConversationHandler.END
+
+    if not student.commission:
         await update.message.reply_text("❌ У вас не указана информация о комиссии.")
         return ConversationHandler.END
 

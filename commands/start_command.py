@@ -162,15 +162,13 @@ async def start_command(update, context):
 
         keyboard_buttons = [
             [KeyboardButton("🆕 Получить новую тему")],
-            [KeyboardButton("📅 Записаться на звонок")],
+            [KeyboardButton("🐛 Бесконечные баги")],
             [KeyboardButton("📚 Отправить домашку")],
             [KeyboardButton("📜 Мои темы и ссылки")],
+            [KeyboardButton("📅 Записаться на звонок")],
             [KeyboardButton("💳 Оплата за обучение")],
+            [KeyboardButton("💸 Выплата комиссии")],
         ]
-
-        # 🔍 Добавляем кнопку, если студент устроился
-        if student.training_status.strip().lower() == "устроился":
-            keyboard_buttons.append([KeyboardButton("💸 Выплата комиссии")])
 
         keyboard = ReplyKeyboardMarkup(keyboard_buttons, resize_keyboard=True)
         

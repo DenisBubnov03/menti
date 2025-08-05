@@ -54,13 +54,13 @@ async def back_to_main_menu(update: Update, context):
     if student:
         keyboard_buttons = [
             [KeyboardButton("🆕 Получить новую тему")],
-            [KeyboardButton("📅 Записаться на звонок")],
+            [KeyboardButton("🐛 Бесконечные баги")],
             [KeyboardButton("📚 Отправить домашку")],
             [KeyboardButton("📜 Мои темы и ссылки")],
+            [KeyboardButton("📅 Записаться на звонок")],
             [KeyboardButton("💳 Оплата за обучение")],
+            [KeyboardButton("💸 Выплата комиссии")],
         ]
-        if student.training_status and student.training_status.strip().lower() == "устроился":
-            keyboard_buttons.append([KeyboardButton("💸 Выплата комиссии")])
         keyboard = ReplyKeyboardMarkup(
             keyboard=keyboard_buttons,
             resize_keyboard=True

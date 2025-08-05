@@ -21,6 +21,7 @@ from commands.payment_mentor import reject_payment, show_pending_payments, check
 from commands.student_progress import request_student_progress, show_student_progress
 from commands.states import *
 from commands.get_new_topic import get_new_topic_entry, get_new_topic_direction, GET_TOPIC_DIRECTION
+from commands.infinite_bugs import infinite_bugs_entry, select_chapter, select_task, process_bug_report
 # from commands.homework_notifications import schedule_homework_notifications, schedule_weekly_reports
 
 import os
@@ -207,9 +208,20 @@ def main():
         fallbacks=[]
     )
 
+    infinite_bugs_handler = ConversationHandler(
+        entry_points=[MessageHandler(filters.Regex("^🐛 Бесконечные баги$"), infinite_bugs_entry)],
+        states={
+            INFINITE_BUGS_CHAPTER: [MessageHandler(filters.TEXT & ~filters.COMMAND, select_chapter)],
+            INFINITE_BUGS_TASK: [MessageHandler(filters.TEXT & ~filters.COMMAND, select_task)],
+            INFINITE_BUGS_LINK: [MessageHandler(filters.TEXT & ~filters.COMMAND, process_bug_report)]
+        },
+        fallbacks=[]
+    )
+
     application.add_handler(student_progress_handler)
     application.add_handler(submit_topic_handler)
     application.add_handler(get_new_topic_handler)
+    application.add_handler(infinite_bugs_handler)
 
     application.add_handler(commission_handler)
 
