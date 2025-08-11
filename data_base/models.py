@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Column, Integer, String, Date, DECIMAL, ForeignKey, DateTime, Boolean, Text, Numeric
+from sqlalchemy import Column, Integer, String, Date, DECIMAL, ForeignKey, DateTime, Boolean, Text, Numeric, UniqueConstraint
 from sqlalchemy.orm import relationship
 
 from data_base import Base
@@ -137,3 +137,20 @@ class AutoProgress(Base):
     m5_topic_passed_date = Column(Date)
     m6_topic_passed_date = Column(Date)
     m7_topic_passed_date = Column(Date)
+
+
+class AIHomeworkCheck(Base):
+    __tablename__ = "ai_homework_checks"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    submission_id = Column(Integer, ForeignKey("homework.id"), nullable=False)
+    topic = Column(String, nullable=False)
+    model = Column(String, nullable=False)
+    status = Column(String, nullable=False)  # queued, running, done, error
+    result_json = Column(Text, nullable=True)
+    raw_text = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Отношения
+    homework = relationship("Homework", backref="ai_checks")

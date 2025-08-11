@@ -1,5 +1,5 @@
 from data_base import engine, Base
-from data_base.models import Student, Mentor, Homework, Payment, ManualProgress  # Импортируем все модели
+from data_base.models import Student, Mentor, Homework, Payment, ManualProgress, AIHomeworkCheck  # Импортируем все модели
 import logging
 
 # Установите уровень логирования для SQLAlchemy
