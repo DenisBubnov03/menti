@@ -2,6 +2,7 @@ from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import MessageHandler, ConversationHandler
 
 from commands.base_function import back_to_main_menu
+from commands.rules_checker import check_rules_accepted
 from data_base.db import session
 
 from commands.states import HOMEWORK_MODULE, HOMEWORK_TOPIC, HOMEWORK_MENTOR, HOMEWORK_MESSAGE, HOMEWORK_SELECT_TYPE, \
@@ -117,6 +118,7 @@ MODULES_TOPICS = {
 }
 
 
+@check_rules_accepted
 async def submit_homework(update: Update, context):
     """Студент начинает процесс сдачи домашки"""
     student_telegram = f"@{update.message.from_user.username}"
@@ -411,58 +413,41 @@ async def save_and_forward_homework(update: Update, context):
                     reply_markup=keyboard
                 )
                 return ConversationHandler.END
-            elif current_attempt >= 2:
-                # После 2 попыток переключаемся на обычную проверку ментором
-                # Не запускаем авто-проверку, просто продолжаем обычный флоу
-                logger.info(f"Тема 4.5: {current_attempt} попыток, переключаемся на ментора")
-                
-                # Уведомляем студента об исчерпании попыток
-                await update.message.reply_text(
-                    "⚠️ Вы исчерпали две попытки на самопроверку. Работа отправлена ментору для личной проверки.",
-                    reply_markup=keyboard
+            
+            # Запускаем авто-проверку для всех попыток темы 4.5
+            # Логика исчерпания попыток будет обрабатываться в review_45_async
+            logger.info(f"Тема 4.5: {current_attempt} попыток, запускаем авто-проверку")
+            
+            # Получаем файл из сообщения
+            filename, file_bytes = await get_file_from_message(update, context)
+            
+            # Создаем функцию для получения данных сдачи с файлом
+            async def get_submission_with_file(submission_id: int) -> dict:
+                payload = await get_submission_payload(submission_id)
+                payload["filename"] = filename
+                payload["file_bytes"] = file_bytes
+                return payload
+            
+            # Создаем функции уведомлений с ботом
+            async def notify_student_with_bot(student_id: int, message: str):
+                await notify_student(student_id, message, context.bot)
+            
+            async def notify_mentor_with_bot(mentor_id: int, message: str):
+                await notify_mentor(mentor_id, message, context.bot)
+            
+            # Запускаем фоновую задачу авто-проверки
+            asyncio.create_task(
+                review_45_async(
+                    submission_id=homework_id,
+                    extract_text_fn=extract_text,
+                    get_submission_payload=get_submission_with_file,
+                    repo=None,  # Будет создан внутри review_45_async
+                    notify_student=notify_student_with_bot,
+                    notify_mentor=notify_mentor_with_bot
                 )
-                
-                # Уведомляем ментора
-                mentor_message = (
-                    f"Ученик {student.fio} {student.telegram} исчерпал 2 попытки авто-проверки по теме 4.5.\n"
-                    f"Работа требует личной проверки.\n"
-                    f"ID домашнего задания: {homework_id}"
-                )
-                await context.bot.send_message(chat_id=mentor_chat_id, text=mentor_message)
-            else:
-                # Меньше 2 попыток - запускаем авто-проверку
-                logger.info(f"Тема 4.5: {current_attempt} попыток, запускаем авто-проверку")
-                
-                # Получаем файл из сообщения
-                filename, file_bytes = await get_file_from_message(update, context)
-                
-                # Создаем функцию для получения данных сдачи с файлом
-                async def get_submission_with_file(submission_id: int) -> dict:
-                    payload = await get_submission_payload(submission_id)
-                    payload["filename"] = filename
-                    payload["file_bytes"] = file_bytes
-                    return payload
-                
-                # Создаем функции уведомлений с ботом
-                async def notify_student_with_bot(student_id: int, message: str):
-                    await notify_student(student_id, message, context.bot)
-                
-                async def notify_mentor_with_bot(mentor_id: int, message: str):
-                    await notify_mentor(mentor_id, message, context.bot)
-                
-                # Запускаем фоновую задачу авто-проверки
-                asyncio.create_task(
-                    review_45_async(
-                        submission_id=homework_id,
-                        extract_text_fn=extract_text,
-                        get_submission_payload=get_submission_with_file,
-                        repo=None,  # Будет создан внутри review_45_async
-                        notify_student=notify_student_with_bot,
-                        notify_mentor=notify_mentor_with_bot
-                    )
-                )
-                
-                logger.info(f"Запущена авто-проверка 4.5 для сдачи {homework_id}")
+            )
+            
+            logger.info(f"Запущена авто-проверка 4.5 для сдачи {homework_id}")
             
         except Exception as e:
             import logging

@@ -22,6 +22,7 @@ from commands.student_progress import request_student_progress, show_student_pro
 from commands.states import *
 from commands.get_new_topic import get_new_topic_entry, get_new_topic_direction, GET_TOPIC_DIRECTION
 from commands.infinite_bugs import infinite_bugs_entry, select_chapter, select_task, process_bug_report
+from commands.rules_acceptance import show_rules, accept_rules_callback
 # from commands.homework_notifications import schedule_homework_notifications, schedule_weekly_reports
 
 import os
@@ -222,6 +223,10 @@ def main():
     application.add_handler(submit_topic_handler)
     application.add_handler(get_new_topic_handler)
     application.add_handler(infinite_bugs_handler)
+    
+    # Добавляем обработчики для правил
+    application.add_handler(MessageHandler(filters.Regex("^📋 Правила$"), show_rules))
+    application.add_handler(CallbackQueryHandler(accept_rules_callback, pattern="^(accept_rules|show_accept)$"))
 
     application.add_handler(commission_handler)
 

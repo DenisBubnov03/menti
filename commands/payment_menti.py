@@ -2,6 +2,7 @@ from telegram import Update, ReplyKeyboardMarkup, KeyboardButton, InlineKeyboard
 from telegram.ext import ConversationHandler
 
 from commands.base_function import back_to_main_menu
+from commands.rules_checker import check_rules_accepted
 from commands.states import PAYMENT_WAITING, PAYMENT_CONFIRMATION
 from data_base.db import session
 from data_base.models import Student, Payment
@@ -16,6 +17,7 @@ from data_base.operations import get_mentor_by_student
 from commands.states import PAYMENT_WAITING
 
 
+@check_rules_accepted
 async def request_payment(update: Update, context):
     """Студент нажимает 'Оплата за обучение'"""
     keyboard = ReplyKeyboardMarkup(

@@ -3,6 +3,7 @@ from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import ConversationHandler, ContextTypes
 
 from commands.base_function import back_to_main_menu
+from commands.rules_checker import check_rules_accepted
 from commands.states import INFINITE_BUGS_CHAPTER, INFINITE_BUGS_TASK, INFINITE_BUGS_LINK
 from data_base.db import session
 from data_base.models import Student
@@ -24,6 +25,7 @@ INFINITE_BUGS_TASKS = {
 }
 
 @log_request("infinite_bugs_entry")
+@check_rules_accepted
 async def infinite_bugs_entry(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Входная точка для функционала 'Бесконечные баги'"""
     user_id = update.message.from_user.id

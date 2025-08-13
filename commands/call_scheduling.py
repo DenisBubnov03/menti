@@ -2,6 +2,7 @@ from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import ConversationHandler, ContextTypes
 
 from commands.base_function import back_to_main_menu
+from commands.rules_checker import check_rules_accepted
 from commands.google_calendar import create_event
 from data_base.models import Student, Mentor
 from data_base.db import session
@@ -9,6 +10,7 @@ from commands.states import CALL_SCHEDULE_DATE, CALL_SCHEDULE_TIME, CALL_CONFIRM
 from data_base.operations import get_mentor_by_direction
 
 
+@check_rules_accepted
 async def request_call(update: Update, context):
     """
     Начинает процесс записи на звонок.

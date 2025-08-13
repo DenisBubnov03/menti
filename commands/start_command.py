@@ -92,6 +92,11 @@ async def start_command(update, context):
     student = get_student_by_fio_or_telegram(username)
     logger.info(f"Student found: {student is not None}")
     if student:
+        # Проверяем, принял ли студент правила
+        if not student.rules_accepted:
+            logger.info(f"Student {student.id} has not accepted rules, showing rules")
+            from commands.rules_acceptance import show_rules
+            return await show_rules(update, context)
         logger.info(f"Student details: ID={student.id}, FIO={student.fio}, Telegram={student.telegram}")
         if not student.chat_id:
             # Обновляем chat_id в отдельной сессии

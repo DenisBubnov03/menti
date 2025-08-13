@@ -60,6 +60,7 @@ async def back_to_main_menu(update: Update, context):
             [KeyboardButton("📅 Записаться на звонок")],
             [KeyboardButton("💳 Оплата за обучение")],
             [KeyboardButton("💸 Выплата комиссии")],
+            [KeyboardButton("📋 Правила")],
         ]
         keyboard = ReplyKeyboardMarkup(
             keyboard=keyboard_buttons,

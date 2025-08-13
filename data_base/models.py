@@ -28,6 +28,7 @@ class Student(Base):
     commission_paid = Column(DECIMAL(10, 2), default=0, server_default="0")
     mentor_id = Column(Integer, ForeignKey("mentors.id"), nullable=False)
     auto_mentor_id = Column(Integer, ForeignKey("mentors.id"), nullable=True)
+    rules_accepted = Column(Boolean, default=False, server_default="false")
 
 class Mentor(Base):
     __tablename__ = "mentors"
