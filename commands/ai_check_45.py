@@ -56,6 +56,15 @@ def extract_text(filename: str, content: bytes) -> str:
     try:
         logger.info(f"Извлечение текста из файла: {filename}, размер: {len(content)} байт")
         
+        # Проверяем входные данные
+        if not content or len(content) == 0:
+            logger.error(f"Пустое содержимое файла: {filename}")
+            return ""
+        
+        if not filename:
+            logger.error("Не указано имя файла")
+            return ""
+        
         if filename.lower().endswith('.pdf'):
             # PDF через PyMuPDF
             doc = fitz.open(stream=content, filetype="pdf")
@@ -211,27 +220,49 @@ def extract_text(filename: str, content: bytes) -> str:
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(min=0.5, max=4))
 def call_llm(text: str) -> dict:
     """Вызов LLM с ретраями"""
-    if not OPENAI_API_KEY:
-        raise ValueError("OPENAI_API_KEY не установлен")
-    
-    client = OpenAI(api_key=OPENAI_API_KEY)
-    
-    # Ограничиваем текст до 12000 символов
-    limited_text = text[:12000]
-    
-    resp = client.chat.completions.create(
-            model=LLM_MODEL,
-            temperature=0.2,
-            messages=[
-                {"role": "system", "content": SYSTEM_45},
-                {"role": "user", "content": f"Проверь домашнюю работу по теме 4.5. Проанализируй ответы студента на вопросы по классификаци техник тестирования, терминологию, работу с багами, жизненным циклам.\n\nТекст работы:\n{limited_text}"},
-            ],
-            timeout=30
-        )
-    
-    raw = resp.choices[0].message.content or ""
-    data = safe_parse_json(raw) or {}
-    return {"raw": raw, "data": data}
+    try:
+        if not OPENAI_API_KEY:
+            raise ValueError("OPENAI_API_KEY не установлен")
+        
+        logger.info(f"Вызов LLM с текстом длиной {len(text)} символов")
+        
+        client = OpenAI(api_key=OPENAI_API_KEY)
+        
+        # Ограничиваем текст до 12000 символов
+        limited_text = text[:12000]
+        logger.info(f"Ограниченный текст: {len(limited_text)} символов")
+        
+        # Проверяем кодировку текста
+        try:
+            limited_text.encode('utf-8')
+            logger.info("Кодировка текста корректна")
+        except UnicodeEncodeError as e:
+            logger.error(f"Ошибка кодировки текста: {e}")
+            limited_text = limited_text.encode('utf-8', errors='ignore').decode('utf-8')
+            logger.info("Текст перекодирован с игнорированием ошибок")
+        
+        resp = client.chat.completions.create(
+                model=LLM_MODEL,
+                temperature=0.2,
+                messages=[
+                    {"role": "system", "content": SYSTEM_45},
+                    {"role": "user", "content": f"Проверь домашнюю работу по теме 4.5. Проанализируй ответы студента на вопросы по классификаци техник тестирования, терминологию, работу с багами, жизненным циклам.\n\nТекст работы:\n{limited_text}"},
+                ],
+                timeout=30
+            )
+        
+        raw = resp.choices[0].message.content or ""
+        logger.info(f"Получен ответ от LLM длиной {len(raw)} символов")
+        
+        data = safe_parse_json(raw) or {}
+        logger.info(f"JSON парсинг: {len(data)} ключей")
+        
+        return {"raw": raw, "data": data}
+        
+    except Exception as e:
+        logger.error(f"Ошибка в call_llm: {type(e).__name__}: {str(e)}")
+        logger.error(f"Тип текста: {type(text)}, длина: {len(text) if text else 0}")
+        raise
 
 
 class AICheckRepository:
@@ -414,18 +445,35 @@ async def review_45_async(submission_id: int, extract_text_fn, get_submission_pa
                 f"Автопроверка 4.5 по сдаче {submission_id}: текст слишком короткий ({len(text)} символов)")
             return
         
-        result = await asyncio.get_running_loop().run_in_executor(None, call_llm, text)
-        data = result.get("data") or {}
-        score = data.get("score")
-        pluses = data.get("pluses", [])
-        mistakes = data.get("mistakes", [])
-        tips = data.get("tips", [])
-        verdict = data.get("verdict", "")
+        try:
+            result = await asyncio.get_running_loop().run_in_executor(None, call_llm, text)
+            data = result.get("data") or {}
+            score = data.get("score")
+            pluses = data.get("pluses", [])
+            mistakes = data.get("mistakes", [])
+            tips = data.get("tips", [])
+            verdict = data.get("verdict", "")
 
-        from data_base.db import get_session
-        with get_session() as db_session:
-            temp_repo = AICheckRepository(db_session)
-            temp_repo.update_check(check_id, status="done", result_json=json.dumps(data, ensure_ascii=False), raw_text=None)
+            from data_base.db import get_session
+            with get_session() as db_session:
+                temp_repo = AICheckRepository(db_session)
+                temp_repo.update_check(check_id, status="done", result_json=json.dumps(data, ensure_ascii=False), raw_text=None)
+                
+        except Exception as llm_error:
+            logger.error(f"Ошибка при вызове LLM для сдачи {submission_id}: {type(llm_error).__name__}: {str(llm_error)}")
+            
+            # Обновляем статус на ошибку
+            from data_base.db import get_session
+            with get_session() as db_session:
+                temp_repo = AICheckRepository(db_session)
+                temp_repo.update_check(check_id, status="error", result_json=None, raw_text=f"LLM error: {str(llm_error)}")
+            
+            # Уведомляем пользователей об ошибке
+            await notify_student(payload["student_id"], 
+                "Автопроверка 4.5: произошла ошибка при проверке. Работа отправлена ментору для ручной проверки.")
+            await notify_mentor(payload["mentor_id"], 
+                f"Автопроверка 4.5 по сдаче {submission_id}: ошибка LLM - {type(llm_error).__name__}: {str(llm_error)}")
+            return
 
                 # Обрабатываем результат и обновляем статусы
         from data_base.db import get_session
