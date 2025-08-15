@@ -226,7 +226,35 @@ def call_llm(text: str) -> dict:
         
         logger.info(f"Вызов LLM с текстом длиной {len(text)} символов")
         
-        client = OpenAI(api_key=OPENAI_API_KEY)
+        # Создаем клиент с учетом разных версий библиотеки
+        try:
+            # Временно очищаем переменные прокси, которые могут конфликтовать с OpenAI
+            import os
+            original_proxy_vars = {}
+            proxy_vars = ['HTTP_PROXY', 'HTTPS_PROXY', 'http_proxy', 'https_proxy']
+            
+            # Сохраняем оригинальные значения
+            for var in proxy_vars:
+                if var in os.environ:
+                    original_proxy_vars[var] = os.environ[var]
+                    del os.environ[var]
+                    logger.info(f"Временно удалена переменная прокси: {var}")
+            
+            try:
+                client = OpenAI(api_key=OPENAI_API_KEY)
+            finally:
+                # Восстанавливаем оригинальные значения
+                for var, value in original_proxy_vars.items():
+                    os.environ[var] = value
+                    logger.info(f"Восстановлена переменная прокси: {var}")
+                    
+        except TypeError as e:
+            if "proxies" in str(e):
+                logger.warning("Ошибка с параметром proxies, создаем клиент без дополнительных параметров")
+                # Пробуем создать клиент с минимальными параметрами
+                client = OpenAI(api_key=OPENAI_API_KEY)
+            else:
+                raise
         
         # Ограничиваем текст до 12000 символов
         limited_text = text[:12000]
