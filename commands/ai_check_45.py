@@ -226,59 +226,8 @@ def call_llm(text: str) -> dict:
         
         logger.info(f"Вызов LLM с текстом длиной {len(text)} символов")
         
-        # Создаем клиент с учетом разных версий библиотеки
-        try:
-            # Проверяем версию OpenAI библиотеки
-            import openai
-            openai_version = getattr(openai, '__version__', 'unknown')
-            logger.info(f"Версия OpenAI библиотеки: {openai_version}")
-            
-            # Временно очищаем переменные прокси, которые могут конфликтовать с OpenAI
-            import os
-            original_proxy_vars = {}
-            proxy_vars = ['HTTP_PROXY', 'HTTPS_PROXY', 'http_proxy', 'https_proxy']
-            
-            # Сохраняем оригинальные значения
-            for var in proxy_vars:
-                if var in os.environ:
-                    original_proxy_vars[var] = os.environ[var]
-                    del os.environ[var]
-                    logger.info(f"Временно удалена переменная прокси: {var}")
-            
-            try:
-                # Пробуем создать клиент с минимальными параметрами
-                client = OpenAI(api_key=OPENAI_API_KEY)
-            finally:
-                # Восстанавливаем оригинальные значения
-                for var, value in original_proxy_vars.items():
-                    os.environ[var] = value
-                    logger.info(f"Восстановлена переменная прокси: {var}")
-                    
-        except TypeError as e:
-            if "proxies" in str(e):
-                logger.warning("Ошибка с параметром proxies, пробуем альтернативные способы")
-                # Пробуем создать клиент через httpx напрямую
-                try:
-                    import httpx
-                    logger.warning("Создаем клиент через httpx напрямую")
-                    client = OpenAI(
-                        api_key=OPENAI_API_KEY,
-                        http_client=httpx.Client(
-                            proxies=None,  # Явно отключаем прокси
-                            timeout=30.0
-                        )
-                    )
-                except Exception as httpx_error:
-                    logger.error(f"Ошибка создания клиента через httpx: {httpx_error}")
-                    # Если ничего не помогает, используем requests напрямую
-                    logger.warning("Используем requests напрямую")
-                    import requests
-                    client = OpenAI(
-                        api_key=OPENAI_API_KEY,
-                        http_client=requests.Session()
-                    )
-            else:
-                raise
+        # Создаем клиент OpenAI
+        client = OpenAI(api_key=OPENAI_API_KEY)
         
         # Ограничиваем текст до 12000 символов
         limited_text = text[:12000]
