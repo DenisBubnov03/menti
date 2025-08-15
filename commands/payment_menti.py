@@ -103,25 +103,32 @@ async def forward_payment(update: Update, context):
     await update.message.reply_text("✅ Ваш платёж отправлен на проверку ментору.")
 
     # ✅ Уведомление ментора
-    # mentor_chat_id = 1257163820  # 🔒 Жёстко заданный ID
-    mentor_chat_id = 325531224
+    # mentor_chat_id = 1257163820
+    mentor_chat_id = 325531224  # 🔒 Жёстко заданный ID
 
-    await context.bot.send_message(
-        chat_id=mentor_chat_id,
-        text=(
-            f"📩 Ученик {student.telegram} отправил платёж на сумму {amount:.2f} руб.\n"
-            f"🆔 ID платежа: {new_payment.id}\n"
-            f"Статус: не подтвержден"
-        )
-    )
-
-    if file_id:
-        await context.bot.send_photo(
-            chat_id=mentor.mentor_chat_id,
-            photo=file_id,
-            caption=f"🧾 Чек от {student.telegram}"
+    try:
+        await context.bot.send_message(
+            chat_id=mentor_chat_id,
+            text=(
+                f"📩 Ученик {student.telegram} отправил платёж на сумму {amount:.2f} руб.\n"
+                f"🆔 ID платежа: {new_payment.id}\n"
+                f"Статус: не подтвержден"
+            )
         )
 
+        if file_id:
+            await context.bot.send_photo(
+                chat_id=mentor_chat_id,
+                photo=file_id,
+                caption=f"🧾 Чек от {student.telegram}"
+            )
+    except Exception as e:
+        import logging
+        logging.error(f"Ошибка отправки уведомления ментору {mentor_chat_id}: {str(e)}")
+        # Не прерываем процесс, просто логируем ошибку
+
+    # Возвращаемся в главное меню
+    await back_to_main_menu(update, context)
     return ConversationHandler.END
 
 async def forward_commission_payment(update: Update, context):
@@ -181,29 +188,34 @@ async def forward_commission_payment(update: Update, context):
     session.commit()
 
     await update.message.reply_text("✅ Выплата комиссии отправлена на проверку ментору.")
+    # mentor_chat_id = 1257163820  # 🔒 Жёстко заданный ID
     mentor_chat_id = 325531224
 
-    if not mentor_chat_id:
-        await update.message.reply_text("⚠ Ошибка: у ментора не указан chat_id.")
-        return ConversationHandler.END
 
-    await context.bot.send_message(
-        chat_id=mentor_chat_id,
-        text=(
-            f"📩 Студент {student_telegram} отправил выплату комиссии на сумму {amount:.2f} руб.\n"
-            f"🆔 ID платежа: {new_payment.id}\n"
-            f"Статус: не подтвержден"
+    try:
+        await context.bot.send_message(
+            chat_id=mentor_chat_id,
+            text=(
+                f"📩 Студент {student_telegram} отправил выплату комиссии на сумму {amount:.2f} руб.\n"
+                f"🆔 ID платежа: {new_payment.id}\n"
+                f"Статус: не подтвержден"
+            )
         )
-    )
 
-    if file_id:
-        if message.photo:
-            await context.bot.send_photo(chat_id=mentor_chat_id, photo=file_id, caption=f"🧾 Чек от {student.telegram}")
-        elif message.document:
-            await context.bot.send_document(chat_id=mentor_chat_id, document=file_id, caption=f"🧾 Чек от {student.telegram}")
-    else:
-        await context.bot.send_message(chat_id=mentor_chat_id, text=f"⚠️ Чек не был приложен студентом {student.telegram}.")
+        if file_id:
+            if message.photo:
+                await context.bot.send_photo(chat_id=mentor_chat_id, photo=file_id, caption=f"🧾 Чек от {student_telegram}")
+            elif message.document:
+                await context.bot.send_document(chat_id=mentor_chat_id, document=file_id, caption=f"🧾 Чек от {student_telegram}")
+        else:
+            await context.bot.send_message(chat_id=mentor_chat_id, text=f"⚠️ Чек не был приложен студентом {student_telegram}.")
+    except Exception as e:
+        import logging
+        logging.error(f"Ошибка отправки уведомления о комиссии ментору {mentor_chat_id}: {str(e)}")
+        # Не прерываем процесс, просто логируем ошибку
 
+    # Возвращаемся в главное меню
+    await back_to_main_menu(update, context)
     return ConversationHandler.END
 
 
