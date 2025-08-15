@@ -228,6 +228,11 @@ def call_llm(text: str) -> dict:
         
         # Создаем клиент с учетом разных версий библиотеки
         try:
+            # Проверяем версию OpenAI библиотеки
+            import openai
+            openai_version = getattr(openai, '__version__', 'unknown')
+            logger.info(f"Версия OpenAI библиотеки: {openai_version}")
+            
             # Временно очищаем переменные прокси, которые могут конфликтовать с OpenAI
             import os
             original_proxy_vars = {}
@@ -241,6 +246,7 @@ def call_llm(text: str) -> dict:
                     logger.info(f"Временно удалена переменная прокси: {var}")
             
             try:
+                # Пробуем создать клиент с минимальными параметрами
                 client = OpenAI(api_key=OPENAI_API_KEY)
             finally:
                 # Восстанавливаем оригинальные значения
@@ -250,9 +256,27 @@ def call_llm(text: str) -> dict:
                     
         except TypeError as e:
             if "proxies" in str(e):
-                logger.warning("Ошибка с параметром proxies, создаем клиент без дополнительных параметров")
-                # Пробуем создать клиент с минимальными параметрами
-                client = OpenAI(api_key=OPENAI_API_KEY)
+                logger.warning("Ошибка с параметром proxies, пробуем альтернативные способы")
+                # Пробуем создать клиент через httpx напрямую
+                try:
+                    import httpx
+                    logger.warning("Создаем клиент через httpx напрямую")
+                    client = OpenAI(
+                        api_key=OPENAI_API_KEY,
+                        http_client=httpx.Client(
+                            proxies=None,  # Явно отключаем прокси
+                            timeout=30.0
+                        )
+                    )
+                except Exception as httpx_error:
+                    logger.error(f"Ошибка создания клиента через httpx: {httpx_error}")
+                    # Если ничего не помогает, используем requests напрямую
+                    logger.warning("Используем requests напрямую")
+                    import requests
+                    client = OpenAI(
+                        api_key=OPENAI_API_KEY,
+                        http_client=requests.Session()
+                    )
             else:
                 raise
         
