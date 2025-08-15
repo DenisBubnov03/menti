@@ -5,7 +5,7 @@ from commands.base_function import back_to_main_menu
 from commands.rules_checker import check_rules_accepted
 from data_base.db import session
 
-from commands.states import HOMEWORK_MODULE, HOMEWORK_TOPIC, HOMEWORK_MENTOR, HOMEWORK_MESSAGE, HOMEWORK_SELECT_TYPE, \
+from commands.states import HOMEWORK_MODULE, HOMEWORK_TOPIC, HOMEWORK_MENTOR, HOMEWORK_MESSAGE, \
     CALL_SCHEDULE
 from data_base.models import Homework, Student, Mentor
 from data_base.operations import get_pending_homework, approve_homework, \
@@ -131,17 +131,22 @@ async def submit_homework(update: Update, context):
     context.user_data["student_id"] = student.id
     context.user_data["training_type"] = student.training_type  # ✅ Сохраняем направление
 
-    # Если студент Фуллстек, даём ему выбор направления
+    # Если студент Фуллстек, ограничиваем только ручным направлением
     if student.training_type == "Фуллстек":
-        keyboard = [
-            [KeyboardButton("Ручное тестирование")],
-            [KeyboardButton("Автотестирование")]
-        ]
+        # Устанавливаем направление как "Ручное тестирование" для фуллстеков
+        context.user_data["training_type"] = "Ручное тестирование"
+        # Используем mentor_id студента для ручного тестирования
+        context.user_data["mentor_id"] = student.mentor_id
+        mentor = session.query(Mentor).get(student.mentor_id) if student.mentor_id else None
+        context.user_data["mentor_telegram"] = mentor.telegram if mentor else None
+        
+        # Показываем модули ручного тестирования
+        keyboard = [[KeyboardButton(mod)] for mod in MODULES_TOPICS["Ручное тестирование"].keys()]
         await update.message.reply_text(
-            "Выберите направление, по которому сдаёте домашку:",
+            "📌 Выберите модуль (ручное тестирование):",
             reply_markup=ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
         )
-        return HOMEWORK_SELECT_TYPE
+        return HOMEWORK_MODULE
 
     # Если студент не фуллстек, сразу отправляем его на выбор модуля
     keyboard = [[KeyboardButton(mod)] for mod in MODULES_TOPICS[student.training_type].keys()]
@@ -154,45 +159,7 @@ async def submit_homework(update: Update, context):
 
 
 
-async def select_stack_type(update: Update, context):
-    """Фуллстек-студент выбирает направление сдачи домашки."""
-    direction_choice = update.message.text.strip()
 
-    if direction_choice.lower() == "отмена":
-        await back_to_main_menu(update, context)
-        return await back_to_main_menu(update, context)
-
-    if direction_choice not in ["Ручное тестирование", "Автотестирование"]:
-        await update.message.reply_text("❌ Ошибка! Выберите направление из предложенных.")
-        return HOMEWORK_SELECT_TYPE
-
-    student_telegram = f"@{update.message.from_user.username}"
-    student = get_student_by_fio_or_telegram(student_telegram)
-
-    if not student:
-        await update.message.reply_text("❌ Студент не найден.")
-        return await back_to_main_menu(update, context)
-
-    # Сохраняем направление
-    context.user_data["training_type"] = direction_choice
-
-    # Определяем ментора по направлению
-    if direction_choice == "Ручное тестирование":
-        context.user_data["mentor_id"] = 1  # manual_mentor
-        context.user_data["mentor_telegram"] = session.query(Mentor).get(1).telegram if session.query(Mentor).get(1) else None
-    else:  # Автотестирование
-        context.user_data["mentor_id"] = getattr(student, 'auto_mentor_id', None)
-        auto_mentor = session.query(Mentor).get(getattr(student, 'auto_mentor_id', None)) if getattr(student, 'auto_mentor_id', None) else None
-        context.user_data["mentor_telegram"] = auto_mentor.telegram if auto_mentor else None
-
-    # Показываем модули
-    keyboard = [[KeyboardButton(mod)] for mod in MODULES_TOPICS[direction_choice].keys()]
-    await update.message.reply_text(
-        f"✅ Вы выбрали направление {direction_choice}. Теперь выберите модуль:",
-        reply_markup=ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
-    )
-
-    return HOMEWORK_MODULE
 
 
 

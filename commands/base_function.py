@@ -55,13 +55,19 @@ async def back_to_main_menu(update: Update, context):
         keyboard_buttons = [
             [KeyboardButton("🆕 Получить новую тему")],
             [KeyboardButton("🐛 Бесконечные баги")],
-            [KeyboardButton("📚 Отправить домашку")],
+        ]
+        
+        # Добавляем кнопку "Отправить домашку" только для ручного тестирования и фуллстеков
+        if student.training_type in ["Ручное тестирование", "Фуллстек"]:
+            keyboard_buttons.append([KeyboardButton("📚 Отправить домашку")])
+        
+        keyboard_buttons.extend([
             [KeyboardButton("📜 Мои темы и ссылки")],
             [KeyboardButton("📅 Записаться на звонок")],
             [KeyboardButton("💳 Оплата за обучение")],
             [KeyboardButton("💸 Выплата комиссии")],
             [KeyboardButton("📋 Правила")],
-        ]
+        ])
         keyboard = ReplyKeyboardMarkup(
             keyboard=keyboard_buttons,
             resize_keyboard=True
