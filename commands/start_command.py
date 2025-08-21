@@ -92,6 +92,23 @@ async def start_command(update, context):
     student = get_student_by_fio_or_telegram(username)
     logger.info(f"Student found: {student is not None}")
     if student:
+        # Обновляем chat_id студента, если он отсутствует
+        if not student.chat_id:
+            # Обновляем chat_id в отдельной сессии
+            from data_base.db import get_session, close_session
+            update_session = get_session()
+            try:
+                student_update = update_session.query(Student).filter(Student.id == student.id).first()
+                if student_update:
+                    student_update.chat_id = chat_id
+                    update_session.commit()
+                    logger.info(f"Updated chat_id for student {student.id} ({student.telegram})")
+            except Exception as e:
+                logger.error(f"Error updating student chat_id: {e}")
+                update_session.rollback()
+            finally:
+                close_session()
+        
         # Проверяем, принял ли студент правила
         if not student.rules_accepted:
             logger.info(f"Student {student.id} has not accepted rules, showing rules")

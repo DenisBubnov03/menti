@@ -40,25 +40,65 @@ async def get_submission_payload(submission_id: int) -> dict:
 async def notify_student(student_id: int, message: str, bot=None):
     """Отправляет уведомление студенту"""
     student = session.query(Student).filter_by(id=student_id).first()
-    if student and student.chat_id and bot:
-        try:
-            await bot.send_message(chat_id=student.chat_id, text=message)
-        except Exception as e:
-            import logging
-            logger = logging.getLogger(__name__)
-            logger.error(f"Ошибка отправки уведомления студенту {student_id}: {e}")
+    if not student:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Студент с ID {student_id} не найден")
+        return
+    
+    if not student.chat_id:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.warning(f"У студента {student_id} ({student.telegram}) отсутствует chat_id. Уведомление не отправлено.")
+        return
+    
+    if not bot:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Бот не передан для отправки уведомления студенту {student_id}")
+        return
+    
+    try:
+        await bot.send_message(chat_id=student.chat_id, text=message)
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"Уведомление отправлено студенту {student_id} ({student.telegram})")
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Ошибка отправки уведомления студенту {student_id} ({student.telegram}): {e}")
 
 
 async def notify_mentor(mentor_id: int, message: str, bot=None):
     """Отправляет уведомление ментору"""
     mentor = session.query(Mentor).filter_by(id=mentor_id).first()
-    if mentor and mentor.chat_id and bot:
-        try:
-            await bot.send_message(chat_id=mentor.chat_id, text=message)
-        except Exception as e:
-            import logging
-            logger = logging.getLogger(__name__)
-            logger.error(f"Ошибка отправки уведомления ментору {mentor_id}: {e}")
+    if not mentor:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Ментор с ID {mentor_id} не найден")
+        return
+    
+    if not mentor.chat_id:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.warning(f"У ментора {mentor_id} ({mentor.telegram}) отсутствует chat_id. Уведомление не отправлено.")
+        return
+    
+    if not bot:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Бот не передан для отправки уведомления ментору {mentor_id}")
+        return
+    
+    try:
+        await bot.send_message(chat_id=mentor.chat_id, text=message)
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"Уведомление отправлено ментору {mentor_id} ({mentor.telegram})")
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Ошибка отправки уведомления ментору {mentor_id} ({mentor.telegram}): {e}")
 
 
 async def get_file_from_message(update: Update, context) -> tuple:

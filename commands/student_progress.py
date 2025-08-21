@@ -93,6 +93,11 @@ async def get_student_progress_info(student):
     info += f"📅 Дата начала обучения: {student.start_date.strftime('%d.%m.%Y') if student.start_date else 'Не указана'}\n"
     info += f"🎯 Тип обучения: {student.training_type or 'Не указан'}\n"
     info += f"📈 Статус обучения: {student.training_status or 'Не указан'}\n"
+    
+    # Определяем текущий модуль студента
+    current_module = get_current_module(student)
+    if current_module:
+        info += f"📚 Текущий модуль: {current_module}\n"
     info += f"💰 Стоимость обучения: {student.total_cost or 0} руб.\n"
     info += f"💳 Оплачено: {student.payment_amount or 0} руб.\n"
     info += f"✅ Полностью оплачено: {student.fully_paid or 'Нет'}\n"
@@ -213,4 +218,60 @@ async def get_student_progress_info(student):
     else:
         info += f"\n📞 Последний звонок: Не записан\n"
     
-    return info 
+    return info
+
+
+def get_current_module(student):
+    """Определяет текущий модуль студента на основе его прогресса"""
+    if not student.training_type:
+        return None
+    
+    # Получаем все домашние задания студента
+    homeworks = session.query(Homework).filter(Homework.student_id == student.id).all()
+    
+    if not homeworks:
+        return "Модуль 1"  # Если нет домашних заданий, начинаем с первого модуля
+    
+    # Группируем домашние задания по модулям
+    modules_progress = {}
+    for hw in homeworks:
+        module = hw.module
+        if module:
+            if module not in modules_progress:
+                modules_progress[module] = []
+            modules_progress[module].append(hw)
+    
+    # Определяем последний завершенный модуль
+    completed_modules = []
+    for module, hws in modules_progress.items():
+        # Считаем модуль завершенным, если есть принятые задания
+        accepted_hws = [hw for hw in hws if hw.status in ["принято", "проверено"]]
+        if accepted_hws:
+            completed_modules.append(module)
+    
+    # Сортируем модули по порядку
+    module_order = {
+        "Модуль 1": 1,
+        "Модуль 2": 2,
+        "Модуль 3": 3,
+        "Модуль 4": 4,
+        "Модуль 5": 5
+    }
+    
+    completed_modules.sort(key=lambda x: module_order.get(x, 999))
+    
+    if not completed_modules:
+        return "Модуль 1"
+    
+    # Возвращаем следующий модуль после последнего завершенного
+    last_completed = completed_modules[-1]
+    last_number = module_order.get(last_completed, 0)
+    next_number = last_number + 1
+    
+    # Проверяем, есть ли следующий модуль
+    for module, number in module_order.items():
+        if number == next_number:
+            return module
+    
+    # Если все модули завершены
+    return f"{last_completed} (завершен)" 
