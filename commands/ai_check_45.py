@@ -13,41 +13,59 @@ logger = logging.getLogger(__name__)
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 LLM_MODEL = os.getenv("LLM_MODEL", "gpt-4o-mini")
 
-SYSTEM_45 = (
-    "Ты проверяешь домашнюю работу студента по теме 4.5 где он ответил на 100 вопросов. Не учитывай необходимость наличия ссылок на статья, сервисы, инструменты и тд. Так же не акцентируй сильно внимание на наличие примеров технологий, сервисов, инструментов \n"
-    "Оцени качество ответов на вопросы по следующим критериям:\n\n"
-    "1. Точность информации - ответы должны быть корректными с технической точки зрения\n"
-    "2. Полнота ответов - должны быть раскрыты все аспекты вопроса\n"
-    "3. Структурированность - логичное изложение материала\n"
-    "4. Практическая применимость - ответы должны быть полезными для работы\n"
-    "5. Актуальность - использование современных подходов и инструментов\n\n"
-    "ВАЖНО: Если текст пустой, неразборчивый или содержит только символы/цифры без смысла, поставь 0 баллов.\n\n"
-    "Критерии оценки:\n"
-    "- 90-100: Отличные ответы с глубоким пониманием темы\n"
-    "- 70-89: Хорошие ответы с небольшими неточностями\n"
-    "- 50-69: Удовлетворительные ответы, есть пробелы в знаниях\n"
-    "- 30-49: Слабые ответы, много неточностей\n"
-    "- 0-29: Неудовлетворительные ответы, пустой текст или неразборчивое содержимое\n\n"
-                    "Верни ТОЛЬКО JSON c ключами:\n"
-                "- score: целое 0..100\n"
-                "- pluses: массив 2–4 сильных сторон работы\n"
-                "- mistakes: массив 2–5 конкретных ошибок или недостатков в ответах\n"
-                "- tips: массив 2–5 конкретных советов по улучшению знаний\n"
-                "- verdict: одно краткое итоговое предложение с оценкой\n"
-                "Никаких пояснений вне JSON."
-)
+# SYSTEM_45 = """
+# Ты — проверяющий домашнюю работу по теме 4.5.
+# Проверяй строго по вопросам. Если есть «Вопрос 1/2/…» — используй номера; иначе бери ключевые слова.
+# Если ошибок нет, то не придумывай их. Орфографию и структурирование  во внимание не бери.
+# Сильную проверку на обязательные поля в баг репортах, жизненых циклах и прочее не делай, но внимательно проверяй на то, чтоб не указать имеющий пункт в ошибке
+#
+# Формат ответа (обязательно соблюдать, если ошибок нет, то не упоминать и не придумывать):
+# ✅ Проверка 4.5 готова
+# Оценка: <балл>/100
+# Статус: ✅ Задание принято!
+# Итог: <одно предложение о результате>
+#
+# Плюсы:
+# • 2–4 пункта (только реально сильные стороны, без противоречий с ошибками)
+#
+# Ошибки:
+# ❌ Вопрос N. <Название вопроса или ключ>
+# - Проблема: <в чём ошибка или что не раскрыто>
+# - Как исправить: <чёткий исправленный текст или список пунктов>
+#
+# Для вопросов с перечислением ответов:
+# В 'Как исправить' сначала добавляется, что необходимо добавить, а затем писать с новой строки: 'У вас перечислено: <Перечисление ответов>'.
+#
+# Советы:
+# • 3–5 конкретных рекомендаций
+# """
+SYSTEM_45 = """Проверь правильно ли все. На терминологию и оформление не обращай внимание
+Формат ответа :
+✅ Проверка 4.5 готова
+Оценка: <балл>/100
+Статус: ✅ Задание принято! (Если меньше 50 баллов, то писать <❌ Задание не принято!>
+Итог: <одно предложение о результате>
+
+Похвали за работу"""
 
 
-def safe_parse_json(s: str):
-    """Безопасный парсинг JSON с обработкой markdown блоков"""
-    t = s.strip()
-    if t.startswith("```"):
-        t = t.strip("`")
-        # убрать возможный префикс типа json\n
-        t = t.split("\n", 1)[1] if "\n" in t else t
+def extract_score_from_text(text: str) -> int:
+    """Извлекает оценку из текстового ответа LLM"""
     try:
-        return json.loads(t)
-    except Exception:
+        # Ищем строку с оценкой
+        lines = text.split('\n')
+        for line in lines:
+            if 'Оценка:' in line:
+                # Извлекаем число из строки типа "Оценка: 85/100"
+                import re
+                match = re.search(r'(\d+)/100', line)
+                if match:
+                    score = int(match.group(1))
+                    if 0 <= score <= 100:
+                        return score
+        return None
+    except Exception as e:
+        logger.error(f"Ошибка извлечения оценки из текста: {e}")
         return None
 
 
@@ -70,8 +88,9 @@ def extract_text(filename: str, content: bytes) -> str:
             doc = fitz.open(stream=content, filetype="pdf")
             text = ""
             for page_num, page in enumerate(doc):
-                page_text = page.get_text()
-                text += page_text
+                # Используем более детальное извлечение текста
+                page_text = page.get_text("text")  # Явно указываем формат
+                text += page_text + "\n"  # Добавляем перенос строки между страницами
                 logger.info(f"PDF страница {page_num + 1}: {len(page_text)} символов")
             doc.close()
             logger.info(f"PDF извлечено всего: {len(text)} символов")
@@ -114,8 +133,8 @@ def extract_text(filename: str, content: bytes) -> str:
                     doc = Document(BytesIO(content))
                     text = ""
                     for paragraph in doc.paragraphs:
-                        if paragraph.text.strip():
-                            text += paragraph.text.strip() + "\n"
+                        if paragraph.text:  # Убираем .strip() чтобы сохранить пробелы
+                            text += paragraph.text + "\n"
                     
                     logger.info(f"DOCX извлечено через python-docx: {len(text)} символов")
                     return text
@@ -156,8 +175,8 @@ def extract_text(filename: str, content: bytes) -> str:
                             row_text = ""
                             has_data = False
                             for cell_value in row:
-                                if cell_value is not None and str(cell_value).strip():
-                                    row_text += str(cell_value).strip() + " | "
+                                if cell_value is not None and str(cell_value):
+                                    row_text += str(cell_value) + " | "  # Убираем .strip()
                                     has_data = True
                             if has_data:
                                 text += row_text.rstrip(" | ") + "\n"
@@ -191,9 +210,19 @@ def extract_text(filename: str, content: bytes) -> str:
                 return text
         
         elif filename.lower().endswith('.txt'):
-            # TXT файл
+            # TXT файл - пробуем разные кодировки
+            encodings = ['utf-8', 'utf-8-sig', 'cp1251', 'windows-1251', 'latin-1']
+            for encoding in encodings:
+                try:
+                    text = content.decode(encoding, errors='ignore')
+                    logger.info(f"TXT извлечено с кодировкой {encoding}: {len(text)} символов")
+                    return text
+                except UnicodeDecodeError:
+                    continue
+            
+            # Если ни одна кодировка не подошла, используем utf-8 с игнорированием ошибок
             text = content.decode('utf-8', errors='ignore')
-            logger.info(f"TXT извлечено: {len(text)} символов")
+            logger.info(f"TXT извлечено с fallback кодировкой: {len(text)} символов")
             return text
         
         elif filename.lower().endswith(('.jpg', '.jpeg', '.png', '.gif')):
@@ -218,8 +247,110 @@ def extract_text(filename: str, content: bytes) -> str:
 
 
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(min=0.5, max=4))
-def call_llm(text: str) -> dict:
-    """Вызов LLM с ретраями"""
+def call_llm_with_file(filename: str, file_content: bytes) -> str:
+    """Вызов LLM с прямым файлом"""
+    try:
+        if not OPENAI_API_KEY:
+            raise ValueError("OPENAI_API_KEY не установлен")
+        
+        logger.info(f"Вызов LLM с файлом: {filename}, размер: {len(file_content)} байт")
+        
+        # Создаем клиент OpenAI
+        client = OpenAI(api_key=OPENAI_API_KEY)
+        
+        # Проверяем, поддерживается ли формат для прямой отправки
+        # gpt-4o-mini поддерживает только PDF файлы
+        if not filename.lower().endswith('.pdf'):
+            raise ValueError(f"Формат {filename} не поддерживается для прямой отправки в {LLM_MODEL}. Поддерживается только PDF.")
+        
+        mime_type = "application/pdf"
+        
+        logger.info(f"Используем MIME тип: {mime_type}")
+        
+        # Проверяем размер файла (OpenAI ограничение ~20MB)
+        if len(file_content) > 20 * 1024 * 1024:  # 20MB
+            raise ValueError(f"Файл слишком большой: {len(file_content)} байт (максимум 20MB)")
+        
+        # Проверяем, поддерживает ли модель работу с файлами
+        if "gpt-4o" in LLM_MODEL.lower():
+            # Для GPT-4o сначала загружаем файл, затем используем file_id
+            import tempfile
+            import os
+            
+            # Создаем временный файл
+            with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(filename)[1]) as temp_file:
+                temp_file.write(file_content)
+                temp_file.flush()
+                
+                try:
+                    # Загружаем файл в OpenAI
+                    with open(temp_file.name, 'rb') as f:
+                        uploaded_file = client.files.create(
+                            file=f,
+                            purpose="assistants"
+                        )
+                    
+                    logger.info(f"Файл загружен в OpenAI с ID: {uploaded_file.id}")
+                    
+                    # Используем file_id в запросе
+                    resp = client.chat.completions.create(
+                        model=LLM_MODEL,
+                        temperature=0.2,
+                        messages=[
+                            {"role": "system", "content": SYSTEM_45},
+                            {
+                                "role": "user", 
+                                "content": [
+                                    {
+                                        "type": "text",
+                                        "text": "Проверь домашнюю работу по теме 4.5. "
+                                                "Проанализируй ответы студента на вопросы по классификации техник тестирования, терминологию, работу с багами, жизненным циклам."
+                                                "Не обращай внимание на сокращение/упрощения слов, к примеру Kuber = Kubernetes. Техники тест дизайна допускаются не стандартные, это подсвечивать не надо. "
+                                                "Так же наличие примеров не обязательно."
+                                    },
+                                    {
+                                        "type": "file",
+                                        "file": {
+                                            "file_id": uploaded_file.id
+                                        }
+                                    }
+                                ]
+                            }
+                        ],
+                        timeout=60  # Увеличиваем timeout для файлов
+                    )
+                    
+                    # Удаляем временный файл
+                    os.unlink(temp_file.name)
+                    
+                except Exception as upload_error:
+                    # Удаляем временный файл в случае ошибки
+                    try:
+                        os.unlink(temp_file.name)
+                    except:
+                        pass
+                    raise upload_error
+                    
+        else:
+            # Для других моделей используем старый формат
+            raise ValueError(f"Модель {LLM_MODEL} не поддерживает работу с файлами")
+        
+        result = resp.choices[0].message.content or ""
+        logger.info(f"Получен ответ от LLM длиной {len(result)} символов")
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"Ошибка в call_llm_with_file: {type(e).__name__}: {str(e)}")
+        logger.error(f"Файл: {filename}, размер: {len(file_content) if file_content else 0}")
+        logger.error(f"Модель: {LLM_MODEL}, MIME тип: {mime_type}")
+        logger.error(f"Полная ошибка: {e}")
+        raise
+
+
+@retry(stop=stop_after_attempt(3), wait=wait_exponential(min=0.5, max=4))
+def call_llm(text: str) -> str:
+    """Вызов LLM с текстом (fallback)"""
     try:
         if not OPENAI_API_KEY:
             raise ValueError("OPENAI_API_KEY не установлен")
@@ -252,13 +383,10 @@ def call_llm(text: str) -> dict:
                 timeout=30
             )
         
-        raw = resp.choices[0].message.content or ""
-        logger.info(f"Получен ответ от LLM длиной {len(raw)} символов")
+        result = resp.choices[0].message.content or ""
+        logger.info(f"Получен ответ от LLM длиной {len(result)} символов")
         
-        data = safe_parse_json(raw) or {}
-        logger.info(f"JSON парсинг: {len(data)} ключей")
-        
-        return {"raw": raw, "data": data}
+        return result
         
     except Exception as e:
         logger.error(f"Ошибка в call_llm: {type(e).__name__}: {str(e)}")
@@ -331,12 +459,11 @@ class TopicAttemptsRepository:
         for hw in all_attempts:
             if hw.ai_checks:
                 for check in hw.ai_checks:
-                    if check.status == "done" and check.result_json:
+                    if check.status == "done" and check.raw_text:
                         try:
-                            import json
-                            result = json.loads(check.result_json)
-                            score = result.get("score", 0)
-                            best_score = max(best_score, score)
+                            score = extract_score_from_text(check.raw_text)
+                            if score is not None:
+                                best_score = max(best_score, score)
                         except:
                             pass
         
@@ -348,10 +475,10 @@ class TopicAttemptsRepository:
         }
     
     def record_attempt(self, student_id: int, topic: str, score: int) -> bool:
-        """Записывает попытку и возвращает True если тема завершена"""
+        """Записывает попытку и возвращает True если тема завершена (порог 50 баллов)"""
         # Просто возвращаем результат на основе оценки
         # Статус домашнего задания уже обновляется в HomeworkRepository
-        return score >= 50
+        return score is not None and score >= 50
 
 
 class HomeworkRepository:
@@ -411,70 +538,128 @@ async def review_45_async(submission_id: int, extract_text_fn, get_submission_pa
 
     try:
         payload = await get_submission_payload(submission_id)
-        text = extract_text_fn(payload["filename"], payload["file_bytes"]).strip()
         
-        if not text:
-            logger.error(f"Не удалось извлечь текст из файла {payload['filename']} для сдачи {submission_id}")
+        # Проверяем размер файла
+        if len(payload["file_bytes"]) < 100:
+            logger.error(f"Файл слишком маленький ({len(payload['file_bytes'])} байт) для сдачи {submission_id}")
             from data_base.db import get_session
             with get_session() as db_session:
                 temp_repo = AICheckRepository(db_session)
-                temp_repo.update_check(check_id, status="error", result_json=None, raw_text="empty_extract")
-            await notify_student(payload["student_id"], "Автопроверка 4.5: не удалось извлечь текст из файла. Убедитесь, что файл содержит текст.")
-            await notify_mentor(payload["mentor_id"], f"Автопроверка 4.5 по сдаче {submission_id}: не удалось извлечь текст из {payload['filename']}")
+                temp_repo.update_check(check_id, status="error", result_json=None, raw_text="file_too_small")
+            await notify_student(payload["student_id"], "Автопроверка 4.5: файл слишком маленький. Убедитесь, что файл содержит данные.")
+            await notify_mentor(payload["mentor_id"], f"Автопроверка 4.5 по сдаче {submission_id}: файл слишком маленький ({len(payload['file_bytes'])} байт)")
             return
-
-        logger.info(f"Извлечен текст длиной {len(text)} символов для сдачи {submission_id}")
-        logger.info(f"Первые 200 символов текста: {text[:200]}...")
         
-        # Проверяем минимальную длину текста
-        if len(text.strip()) < 50:
-            logger.warning(f"Текст слишком короткий ({len(text)} символов) для сдачи {submission_id}")
-            from data_base.db import get_session
-            with get_session() as db_session:
-                temp_repo = AICheckRepository(db_session)
-                temp_repo.update_check(check_id, status="done", result_json=json.dumps({
-                    "score": 0,
-                    "pluses": [],
-                    "mistakes": ["Текст слишком короткий для оценки", "Недостаточно информации для анализа"],
-                    "tips": ["Предоставьте полные ответы на вопросы", "Используйте текстовый формат файла"],
-                    "verdict": "Недостаточно информации для оценки"
-                }, ensure_ascii=False), raw_text=None)
-            
-            await notify_student(payload["student_id"], 
-                "Автопроверка 4.5: текст слишком короткий для оценки. Убедитесь, что файл содержит полные ответы на вопросы.")
-            await notify_mentor(payload["mentor_id"], 
-                f"Автопроверка 4.5 по сдаче {submission_id}: текст слишком короткий ({len(text)} символов)")
-            return
+        logger.info(f"Отправляем файл {payload['filename']} размером {len(payload['file_bytes'])} байт напрямую в LLM")
         
         try:
-            result = await asyncio.get_running_loop().run_in_executor(None, call_llm, text)
-            data = result.get("data") or {}
-            score = data.get("score")
-            pluses = data.get("pluses", [])
-            mistakes = data.get("mistakes", [])
-            tips = data.get("tips", [])
-            verdict = data.get("verdict", "")
+            # Пробуем отправить файл напрямую в LLM
+            llm_response = await asyncio.get_running_loop().run_in_executor(
+                None, 
+                call_llm_with_file, 
+                payload["filename"], 
+                payload["file_bytes"]
+            )
+            
+            # Извлекаем оценку из текстового ответа
+            score = extract_score_from_text(llm_response)
+            
+            # Проверяем корректность score
+            if score is not None:
+                if score < 0 or score > 100:
+                    logger.warning(f"Некорректный score {score} для сдачи {submission_id}, устанавливаем None")
+                    score = None
 
             from data_base.db import get_session
             with get_session() as db_session:
                 temp_repo = AICheckRepository(db_session)
-                temp_repo.update_check(check_id, status="done", result_json=json.dumps(data, ensure_ascii=False), raw_text=None)
+                temp_repo.update_check(check_id, status="done", result_json=None, raw_text=llm_response)
                 
         except Exception as llm_error:
-            logger.error(f"Ошибка при вызове LLM для сдачи {submission_id}: {type(llm_error).__name__}: {str(llm_error)}")
+            logger.error(f"Ошибка при прямой отправке файла в LLM для сдачи {submission_id}: {type(llm_error).__name__}: {str(llm_error)}")
             
-            # Обновляем статус на ошибку
-            from data_base.db import get_session
-            with get_session() as db_session:
-                temp_repo = AICheckRepository(db_session)
-                temp_repo.update_check(check_id, status="error", result_json=None, raw_text=f"LLM error: {str(llm_error)}")
+            # Логируем ошибку для диагностики
+            logger.error(f"Ошибка при отправке файла: {llm_error}")
             
-            # Уведомляем пользователей об ошибке
-            await notify_student(payload["student_id"], 
-                "Автопроверка 4.5: произошла ошибка при проверке. Работа отправлена ментору для ручной проверки.")
-            await notify_mentor(payload["mentor_id"], 
-                f"Автопроверка 4.5 по сдаче {submission_id}: ошибка LLM - {type(llm_error).__name__}: {str(llm_error)}")
-            return
+            # Проверяем, является ли это ошибкой неподдерживаемого формата
+            if "не поддерживается" in str(llm_error) or "Expected a file with an application/pdf" in str(llm_error):
+                logger.info(f"Формат файла не поддерживается для прямой отправки, переключаемся на fallback")
+            else:
+                logger.error(f"Неожиданная ошибка при отправке файла: {llm_error}")
+            
+            logger.info(f"Переключаемся на fallback метод")
+            
+            # Пробуем fallback - извлекаем текст и отправляем как раньше
+            logger.info(f"Пробуем fallback метод для сдачи {submission_id}")
+            try:
+                text = extract_text_fn(payload["filename"], payload["file_bytes"]).strip()
+                
+                if not text:
+                    logger.error(f"Не удалось извлечь текст из файла {payload['filename']} для сдачи {submission_id}")
+                    from data_base.db import get_session
+                    with get_session() as db_session:
+                        temp_repo = AICheckRepository(db_session)
+                        temp_repo.update_check(check_id, status="error", result_json=None, raw_text="empty_extract")
+                    await notify_student(payload["student_id"], "Автопроверка 4.5: не удалось извлечь текст из файла. Убедитесь, что файл содержит текст.")
+                    await notify_mentor(payload["mentor_id"], f"Автопроверка 4.5 по сдаче {submission_id}: не удалось извлечь текст из {payload['filename']}")
+                    return
+                
+                logger.info(f"Fallback: извлечен текст длиной {len(text)} символов для сдачи {submission_id}")
+                logger.info(f"Fallback: первые 300 символов: {text[:300]}...")
+                
+                # Проверяем наличие ключевых слов в fallback
+                text_lower = text.lower()
+                keywords = ['безопасность', 'нагрузочное', 'юзабилити', 'совместимость', 'установка', 'регресс', 'смоук', 'ретест']
+                found_keywords = [kw for kw in keywords if kw in text_lower]
+                logger.info(f"Fallback: найденные ключевые слова: {found_keywords}")
+                
+                # Проверяем минимальную длину текста
+                if len(text.strip()) < 50:
+                    logger.warning(f"Fallback: текст слишком короткий ({len(text)} символов) для сдачи {submission_id}")
+                    from data_base.db import get_session
+                    with get_session() as db_session:
+                        temp_repo = AICheckRepository(db_session)
+                        temp_repo.update_check(check_id, status="done", result_json=None, raw_text="Текст слишком короткий для оценки")
+                    
+                    await notify_student(payload["student_id"], 
+                        "Автопроверка 4.5: текст слишком короткий для оценки. Убедитесь, что файл содержит полные ответы на вопросы.")
+                    await notify_mentor(payload["mentor_id"], 
+                        f"Автопроверка 4.5 по сдаче {submission_id}: текст слишком короткий ({len(text)} символов)")
+                    return
+                
+                # Отправляем извлеченный текст
+                llm_response = await asyncio.get_running_loop().run_in_executor(None, call_llm, text)
+                
+                # Извлекаем оценку из текстового ответа (fallback)
+                score = extract_score_from_text(llm_response)
+                
+                # Проверяем корректность score
+                if score is not None:
+                    if score < 0 or score > 100:
+                        logger.warning(f"Fallback: некорректный score {score} для сдачи {submission_id}, устанавливаем None")
+                        score = None
+                
+                # Обновляем статус в fallback
+                from data_base.db import get_session
+                with get_session() as db_session:
+                    temp_repo = AICheckRepository(db_session)
+                    temp_repo.update_check(check_id, status="done", result_json=None, raw_text=llm_response)
+                
+            except Exception as fallback_error:
+                logger.error(f"Ошибка в fallback методе для сдачи {submission_id}: {type(fallback_error).__name__}: {str(fallback_error)}")
+                
+                # Обновляем статус на ошибку
+                from data_base.db import get_session
+                with get_session() as db_session:
+                    temp_repo = AICheckRepository(db_session)
+                    temp_repo.update_check(check_id, status="error", result_json=None, raw_text=f"LLM error: {str(llm_error)} + fallback error: {str(fallback_error)}")
+                
+                # Уведомляем пользователей об ошибке
+                await notify_student(payload["student_id"], 
+                    "Автопроверка 4.5: произошла ошибка при проверке. Работа отправлена ментору для ручной проверки.")
+                await notify_mentor(payload["mentor_id"], 
+                    f"Автопроверка 4.5 по сдаче {submission_id}: ошибка LLM - {type(llm_error).__name__}: {str(llm_error)}")
+                return
 
                 # Обрабатываем результат и обновляем статусы
         from data_base.db import get_session
@@ -484,53 +669,59 @@ async def review_45_async(submission_id: int, extract_text_fn, get_submission_pa
             attempts_repo = TopicAttemptsRepository(db_session)
             homework_repo = HomeworkRepository(db_session)
             
-            # Определяем завершение темы
-            is_completed = score >= 50
+            # Определяем завершение темы (порог 50 баллов)
+            is_completed = score is not None and score >= 50
             
             # Обновляем статус домашнего задания
-            if score >= 50:
+            if score is not None and score >= 50:
                 homework_repo.update_homework_status(submission_id, "проверено")
                 status_msg = "✅ Задание принято!"
+            elif score is None:
+                homework_repo.update_homework_status(submission_id, "не принято")
+                status_msg = "❌ Задание не принято (ошибка оценки)"
             else:
                 homework_repo.update_homework_status(submission_id, "не принято")
-                status_msg = "❌ Задание не принято (оценка меньше 50)"
+                status_msg = "❌ Задание не принято!"
             
             # Получаем информацию о попытках
             attempts_info = attempts_repo.get_attempts(payload["student_id"], "Тема 4.5")
 
-        # Студенту
-        msg_student = (
-            f"✅ Проверка 4.5 готова\n"
-            f"Оценка: {score}/100\n"
-            f"Статус: {status_msg}\n"
-            f"Итог: {verdict}\n"
-        )
-        if pluses:
-            msg_student += "Плюсы:\n" + "\n".join(f"{p}" for p in pluses[:4]) + "\n\n"
-        if mistakes:
-            msg_student += "Ошибки:\n" + "\n".join(f"{m}" for m in mistakes[:5]) + "\n"
-        if tips:
-            msg_student += "Советы:\n" + "\n".join(f"{t}" for t in tips[:5])
+        # Студенту - используем готовый ответ LLM
+        msg_student = llm_response
         
         # Добавляем информацию о попытках
         current_attempt = attempts_info["attempts_count"]
         
+        # Добавляем информацию о попытках в конец сообщения
+        attempts_info_text = ""
         if attempts_info["is_completed"]:
-            msg_student += "\n\n🎉 Тема 4.5 завершена!"
-        elif current_attempt >= 2 and score < 50:
+            attempts_info_text = "\n\n🎉 Тема 4.5 завершена!"
+        elif current_attempt >= 2 and (score is None or score < 50):
             # Вторая или последующая неудачная попытка - показываем сообщение о лимите
-            msg_student += "\n\n⚠️ Вы исчерпали две попытки на самопроверку. Работа отправлена ментору для личной проверки."
+            attempts_info_text = "\n\n⚠️ Вы исчерпали две попытки на самопроверку. Работа отправлена ментору для личной проверки."
         elif current_attempt < 2:
             remaining = 2 - current_attempt
-            msg_student += f"\n\n🔄 Осталось попыток: {remaining}"
+            attempts_info_text = f"\n\n🔄 Осталось попыток: {remaining}"
+        
+        # Добавляем информацию о попытках в конец сообщения
+        if attempts_info_text:
+            msg_student += attempts_info_text
         
         await notify_student(payload["student_id"], msg_student)
 
-        # Ментору
+        # Ментору - извлекаем информацию из ответа LLM
+        score_display = score if score is not None else "Ошибка оценки"
+        # Ищем статус в ответе LLM
+        status_from_llm = "Статус не определен"
+        for line in llm_response.split('\n'):
+            if 'Статус:' in line:
+                status_from_llm = line.split('Статус:')[1].strip()
+                break
+        
         msg_mentor = (
             f"Ученик {payload.get('student_username') or payload['student_id']} сдал 4.5\n"
-            f"Оценка: {score}/100 — {verdict}\n"
-            f"Статус: {status_msg}\n"
+            f"Оценка: {score_display}/100\n"
+            f"Статус: {status_from_llm}\n"
             f"Попытка: {attempts_info['attempts_count']}/2"
         )
         await notify_mentor(payload["mentor_id"], msg_mentor)
