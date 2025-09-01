@@ -398,7 +398,7 @@ def call_llm(text: str) -> str:
             limited_text = limited_text.encode('utf-8', errors='ignore').decode('utf-8')
             logger.info("Текст перекодирован с игнорированием ошибок")
         
-                resp = client.chat.completions.create(
+        resp = client.chat.completions.create(
             model=LLM_MODEL,
             temperature=0.2,
             messages=[
