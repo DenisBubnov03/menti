@@ -25,11 +25,18 @@ else:
 logger.info(f"LLM_MODEL: {LLM_MODEL}")
 
 # Проверяем переменные прокси, которые могут вызывать проблемы
-proxy_vars = ['HTTP_PROXY', 'HTTPS_PROXY', 'http_proxy', 'https_proxy']
+proxy_vars = ['HTTP_PROXY', 'HTTPS_PROXY', 'http_proxy', 'https_proxy', 'no_proxy']
+proxy_found = False
 for var in proxy_vars:
     if os.getenv(var):
+        proxy_found = True
         logger.warning(f"Обнаружена переменная прокси {var}: {os.getenv(var)[:20]}...")
         logger.warning("Это может вызывать проблемы с OpenAI API")
+
+if proxy_found:
+    logger.warning("ВНИМАНИЕ: Обнаружены переменные прокси! Система будет временно их отключать при создании OpenAI клиента.")
+else:
+    logger.info("Переменные прокси не обнаружены")
 
 # SYSTEM_45 = """
 # Ты — проверяющий домашнюю работу по теме 4.5.
@@ -275,22 +282,32 @@ def call_llm_with_file(filename: str, file_content: bytes) -> str:
         
         # Создаем клиент OpenAI
         try:
-            client = OpenAI(
-                api_key=OPENAI_API_KEY,
-                http_client=None  # Отключаем автоматическое использование прокси
-            )
-            logger.info("OpenAI клиент для файлов успешно создан")
+            # Временно очищаем переменные прокси из окружения
+            original_proxy_vars = {}
+            proxy_vars = ['HTTP_PROXY', 'HTTPS_PROXY', 'http_proxy', 'https_proxy', 'no_proxy']
+            
+            for var in proxy_vars:
+                if var in os.environ:
+                    original_proxy_vars[var] = os.environ[var]
+                    del os.environ[var]
+                    logger.info(f"Временно удалена переменная прокси: {var}")
+            
+            try:
+                # Создаем клиент без прокси
+                client = OpenAI(api_key=OPENAI_API_KEY)
+                logger.info("OpenAI клиент для файлов успешно создан")
+            finally:
+                # Восстанавливаем переменные прокси
+                for var, value in original_proxy_vars.items():
+                    os.environ[var] = value
+                    logger.info(f"Восстановлена переменная прокси: {var}")
+                    
         except Exception as client_error:
             logger.error(f"Ошибка создания OpenAI клиента для файлов: {type(client_error).__name__}: {client_error}")
             
-            # Пробуем альтернативный способ без дополнительных параметров
-            try:
-                logger.info("Пробуем создать клиент для файлов без дополнительных параметров...")
-                client = OpenAI(api_key=OPENAI_API_KEY)
-                logger.info("OpenAI клиент для файлов создан альтернативным способом")
-            except Exception as alt_error:
-                logger.error(f"Альтернативный способ для файлов тоже не работает: {type(alt_error).__name__}: {alt_error}")
-                raise alt_error
+            # Если не можем создать клиент, используем fallback
+            logger.warning("OpenAI API недоступен для файлов, используем fallback")
+            raise ValueError("OpenAI клиент недоступен")
         
         # Проверяем, поддерживается ли формат для прямой отправки
         # gpt-4o-mini поддерживает только PDF файлы
@@ -402,23 +419,32 @@ def call_llm(text: str) -> str:
         
         # Создаем клиент OpenAI
         try:
-            # Явно указываем, что прокси не нужны
-            client = OpenAI(
-                api_key=OPENAI_API_KEY,
-                http_client=None  # Отключаем автоматическое использование прокси
-            )
-            logger.info("OpenAI клиент успешно создан")
+            # Временно очищаем переменные прокси из окружения
+            original_proxy_vars = {}
+            proxy_vars = ['HTTP_PROXY', 'HTTPS_PROXY', 'http_proxy', 'https_proxy', 'no_proxy']
+            
+            for var in proxy_vars:
+                if var in os.environ:
+                    original_proxy_vars[var] = os.environ[var]
+                    del os.environ[var]
+                    logger.info(f"Временно удалена переменная прокси: {var}")
+            
+            try:
+                # Создаем клиент без прокси
+                client = OpenAI(api_key=OPENAI_API_KEY)
+                logger.info("OpenAI клиент успешно создан")
+            finally:
+                # Восстанавливаем переменные прокси
+                for var, value in original_proxy_vars.items():
+                    os.environ[var] = value
+                    logger.info(f"Восстановлена переменная прокси: {var}")
+                    
         except Exception as client_error:
             logger.error(f"Ошибка создания OpenAI клиента: {type(client_error).__name__}: {client_error}")
             
-            # Пробуем альтернативный способ без дополнительных параметров
-            try:
-                logger.info("Пробуем создать клиент без дополнительных параметров...")
-                client = OpenAI(api_key=OPENAI_API_KEY)
-                logger.info("OpenAI клиент создан альтернативным способом")
-            except Exception as alt_error:
-                logger.error(f"Альтернативный способ тоже не работает: {type(alt_error).__name__}: {alt_error}")
-                raise alt_error
+            # Если все еще не работает, используем fallback
+            logger.warning("OpenAI API недоступен, используем базовую оценку")
+            return generate_basic_assessment(text)
         
         # Ограничиваем текст до 12000 символов
         limited_text = text[:12000]
