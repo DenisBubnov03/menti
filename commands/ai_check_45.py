@@ -10,8 +10,19 @@ import fitz  # PyMuPDF
 
 logger = logging.getLogger(__name__)
 
+# Проверяем переменные окружения
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 LLM_MODEL = os.getenv("LLM_MODEL", "gpt-4o-mini")
+
+# Логируем информацию о переменных окружения
+if OPENAI_API_KEY:
+    logger.info(f"OPENAI_API_KEY найден: {OPENAI_API_KEY[:10]}...")
+    if not OPENAI_API_KEY.startswith("sk-"):
+        logger.warning(f"OPENAI_API_KEY имеет неправильный формат: {OPENAI_API_KEY[:20]}...")
+else:
+    logger.error("OPENAI_API_KEY не установлен!")
+
+logger.info(f"LLM_MODEL: {LLM_MODEL}")
 
 # SYSTEM_45 = """
 # Ты — проверяющий домашнюю работу по теме 4.5.
@@ -352,13 +363,27 @@ def call_llm_with_file(filename: str, file_content: bytes) -> str:
 def call_llm(text: str) -> str:
     """Вызов LLM с текстом (fallback)"""
     try:
+        # Проверяем API ключ
         if not OPENAI_API_KEY:
+            logger.error("OPENAI_API_KEY не установлен")
             raise ValueError("OPENAI_API_KEY не установлен")
         
+        # Проверяем формат API ключа
+        if not OPENAI_API_KEY.startswith("sk-"):
+            logger.error(f"Неправильный формат OPENAI_API_KEY: {OPENAI_API_KEY[:10]}...")
+            raise ValueError("Неправильный формат OPENAI_API_KEY")
+        
         logger.info(f"Вызов LLM с текстом длиной {len(text)} символов")
+        logger.info(f"Используем модель: {LLM_MODEL}")
+        logger.info(f"API ключ: {OPENAI_API_KEY[:10]}...")
         
         # Создаем клиент OpenAI
-        client = OpenAI(api_key=OPENAI_API_KEY)
+        try:
+            client = OpenAI(api_key=OPENAI_API_KEY)
+            logger.info("OpenAI клиент успешно создан")
+        except Exception as client_error:
+            logger.error(f"Ошибка создания OpenAI клиента: {type(client_error).__name__}: {client_error}")
+            raise
         
         # Ограничиваем текст до 12000 символов
         limited_text = text[:12000]
@@ -373,15 +398,15 @@ def call_llm(text: str) -> str:
             limited_text = limited_text.encode('utf-8', errors='ignore').decode('utf-8')
             logger.info("Текст перекодирован с игнорированием ошибок")
         
-        resp = client.chat.completions.create(
-                model=LLM_MODEL,
-                temperature=0.2,
-                messages=[
-                    {"role": "system", "content": SYSTEM_45},
-                    {"role": "user", "content": f"Проверь домашнюю работу по теме 4.5. Проанализируй ответы студента на вопросы по классификаци техник тестирования, терминологию, работу с багами, жизненным циклам.\n\nТекст работы:\n{limited_text}"},
-                ],
-                timeout=30
-            )
+                resp = client.chat.completions.create(
+            model=LLM_MODEL,
+            temperature=0.2,
+            messages=[
+                {"role": "system", "content": SYSTEM_45},
+                {"role": "user", "content": f"Проверь домашнюю работу по теме 4.5. Проанализируй ответы студента на вопросы по классификаци техник тестирования, терминологию, работу с багами, жизненным циклам.\n\nТекст работы:\n{limited_text}"},
+            ],
+            timeout=30
+        )
         
         result = resp.choices[0].message.content or ""
         logger.info(f"Получен ответ от LLM длиной {len(result)} символов")
@@ -391,6 +416,12 @@ def call_llm(text: str) -> str:
     except Exception as e:
         logger.error(f"Ошибка в call_llm: {type(e).__name__}: {str(e)}")
         logger.error(f"Тип текста: {type(text)}, длина: {len(text) if text else 0}")
+        
+        # Если OpenAI недоступен, возвращаем базовую оценку
+        if "OPENAI_API_KEY" in str(e) or "Client.init" in str(e):
+            logger.warning("OpenAI API недоступен, используем базовую оценку")
+            return generate_basic_assessment(text)
+        
         raise
 
 
@@ -754,4 +785,50 @@ async def review_45_async(submission_id: int, extract_text_fn, get_submission_pa
             await notify_student(payload["student_id"], user_message)
             await notify_mentor(payload["mentor_id"], mentor_message)
         except Exception as notify_error:
-            logger.error(f"Ошибка отправки уведомлений об ошибке: {notify_error}") 
+            logger.error(f"Ошибка отправки уведомлений об ошибке: {notify_error}")
+
+
+def generate_basic_assessment(text: str) -> str:
+    """Генерирует базовую оценку, когда OpenAI API недоступен"""
+    try:
+        # Простая логика оценки на основе длины текста и ключевых слов
+        text_lower = text.lower()
+        
+        # Ищем ключевые слова
+        keywords = ['безопасность', 'нагрузочное', 'юзабилити', 'совместимость', 'установка', 'регресс', 'смоук', 'ретест']
+        found_keywords = [kw for kw in keywords if kw in text_lower]
+        
+        # Базовая оценка на основе длины и ключевых слов
+        base_score = min(100, max(0, len(text) // 100 + len(found_keywords) * 10))
+        
+        # Определяем статус
+        if base_score >= 50:
+            status = "✅ Задание принято!"
+        else:
+            status = "❌ Задание не принято!"
+        
+        assessment = f"""✅ Проверка 4.5 готова
+Оценка: {base_score}/100
+Статус: {status}
+Итог: Базовая оценка (OpenAI API недоступен)
+
+Плюсы:
+• Текст содержит {len(found_keywords)} ключевых терминов
+• Длина ответа: {len(text)} символов
+
+Ошибки:
+❌ Вопрос 1. Автоматическая проверка
+- Проблема: OpenAI API недоступен, используется базовая оценка
+- Как исправить: Обратитесь к ментору для детальной проверки
+
+Советы:
+• Дождитесь восстановления автоматической проверки
+• Или обратитесь к ментору для ручной проверки
+
+🎉 Тема 4.5 проверена (базовая оценка)"""
+        
+        return assessment
+        
+    except Exception as e:
+        logger.error(f"Ошибка в generate_basic_assessment: {e}")
+        return "❌ Ошибка автоматической проверки. Обратитесь к ментору." 
