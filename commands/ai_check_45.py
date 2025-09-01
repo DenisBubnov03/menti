@@ -24,6 +24,13 @@ else:
 
 logger.info(f"LLM_MODEL: {LLM_MODEL}")
 
+# Проверяем переменные прокси, которые могут вызывать проблемы
+proxy_vars = ['HTTP_PROXY', 'HTTPS_PROXY', 'http_proxy', 'https_proxy']
+for var in proxy_vars:
+    if os.getenv(var):
+        logger.warning(f"Обнаружена переменная прокси {var}: {os.getenv(var)[:20]}...")
+        logger.warning("Это может вызывать проблемы с OpenAI API")
+
 # SYSTEM_45 = """
 # Ты — проверяющий домашнюю работу по теме 4.5.
 # Проверяй строго по вопросам. Если есть «Вопрос 1/2/…» — используй номера; иначе бери ключевые слова.
@@ -267,7 +274,23 @@ def call_llm_with_file(filename: str, file_content: bytes) -> str:
         logger.info(f"Вызов LLM с файлом: {filename}, размер: {len(file_content)} байт")
         
         # Создаем клиент OpenAI
-        client = OpenAI(api_key=OPENAI_API_KEY)
+        try:
+            client = OpenAI(
+                api_key=OPENAI_API_KEY,
+                http_client=None  # Отключаем автоматическое использование прокси
+            )
+            logger.info("OpenAI клиент для файлов успешно создан")
+        except Exception as client_error:
+            logger.error(f"Ошибка создания OpenAI клиента для файлов: {type(client_error).__name__}: {client_error}")
+            
+            # Пробуем альтернативный способ без дополнительных параметров
+            try:
+                logger.info("Пробуем создать клиент для файлов без дополнительных параметров...")
+                client = OpenAI(api_key=OPENAI_API_KEY)
+                logger.info("OpenAI клиент для файлов создан альтернативным способом")
+            except Exception as alt_error:
+                logger.error(f"Альтернативный способ для файлов тоже не работает: {type(alt_error).__name__}: {alt_error}")
+                raise alt_error
         
         # Проверяем, поддерживается ли формат для прямой отправки
         # gpt-4o-mini поддерживает только PDF файлы
@@ -379,11 +402,23 @@ def call_llm(text: str) -> str:
         
         # Создаем клиент OpenAI
         try:
-            client = OpenAI(api_key=OPENAI_API_KEY)
+            # Явно указываем, что прокси не нужны
+            client = OpenAI(
+                api_key=OPENAI_API_KEY,
+                http_client=None  # Отключаем автоматическое использование прокси
+            )
             logger.info("OpenAI клиент успешно создан")
         except Exception as client_error:
             logger.error(f"Ошибка создания OpenAI клиента: {type(client_error).__name__}: {client_error}")
-            raise
+            
+            # Пробуем альтернативный способ без дополнительных параметров
+            try:
+                logger.info("Пробуем создать клиент без дополнительных параметров...")
+                client = OpenAI(api_key=OPENAI_API_KEY)
+                logger.info("OpenAI клиент создан альтернативным способом")
+            except Exception as alt_error:
+                logger.error(f"Альтернативный способ тоже не работает: {type(alt_error).__name__}: {alt_error}")
+                raise alt_error
         
         # Ограничиваем текст до 12000 символов
         limited_text = text[:12000]
