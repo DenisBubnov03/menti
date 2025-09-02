@@ -60,19 +60,24 @@ async def forward_payment(update: Update, context):
 
     amount = float(payment_text)
 
-    # Получаем студента и ментора
+    # Получаем студента
     student = session.query(Student).filter(Student.telegram == student_telegram).first()
-    mentor = get_mentor_by_student(student_telegram)
 
-    if not student or not mentor:
-        await update.message.reply_text("⚠ Не удалось найти профиль или ментора.")
+    if not student:
+        await update.message.reply_text("⚠ Не удалось найти профиль студента.")
         return ConversationHandler.END
 
-    # --- Исправление mentor_id для авто и фуллстеков ---
-    mentor_id = student.mentor_id  # по умолчанию ручной
+    # Определяем mentor_id: для Автотестирование/Фуллстек используем auto_mentor_id, иначе mentor_id
+    mentor_id = student.mentor_id
     if student.training_type in ["Автотестирование", "Фуллстек"] and getattr(student, 'auto_mentor_id', None):
         mentor_id = student.auto_mentor_id
-    # --- конец исправления ---
+
+    # Валидация наличия ментора по итоговому mentor_id
+    from data_base.models import Mentor
+    mentor_obj = session.query(Mentor).filter(Mentor.id == mentor_id).first()
+    if not mentor_obj:
+        await update.message.reply_text("⚠ Не удалось определить куратора для вашего направления. Свяжитесь с администратором.")
+        return ConversationHandler.END
 
     total_paid = student.payment_amount or Decimal("0")
     total_cost = student.total_cost or Decimal("0")
