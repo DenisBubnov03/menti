@@ -340,7 +340,7 @@ async def handle_manual_direction(update: Update, context, student: Student):
 AUTO_MODULE_LINKS = {
     1: "https://thankful-candy-c57.notion.site/1-12794f774aab804fa485d54e333f7918?source=copy_link",
     2: "https://thankful-candy-c57.notion.site/2-Python-AQA-26f9629adcbb4cb49c74592a1ba2f66c?source=copy_link",
-    3: "https://thankful-candy-c57.notion.site/3-Python-12794f774aab80b8ac64e4d819c0ca52?source=copy_link",
+    3: "https://thankful-candy-c57.notion.site/3-Python-24f94f774aab808c9909d9d7fee3ead8?source=copy_link",
     4: "https://thankful-candy-c57.notion.site/4-12494f774aab80a180a5feda380ca76b?source=copy_link",
     5: "https://thankful-candy-c57.notion.site/5-16b94f774aab800f91acd78f1d488d0a?source=copy_link",
     6: "https://thankful-candy-c57.notion.site/6-13e94f774aab807bb68bc31f5f5bc482?source=copy_link",
