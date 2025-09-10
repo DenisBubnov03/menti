@@ -135,24 +135,25 @@ async def submit_topic_students(update: Update, context: ContextTypes.DEFAULT_TY
                         already_submitted.append(f"{username} (сдал {existing_date})")
                         continue
                     setattr(progress, field, datetime.now().date())
-                    # Дублируем в fullstack_topic_assignments как авто-проставление
-                    try:
-                        session.execute(
-                            text(
-                                """
-                                INSERT INTO fullstack_topic_assignments (student_id, mentor_id, topic_manual, topic_auto, assigned_at)
-                                VALUES (:student_id, :mentor_id, NULL, :topic_auto, NOW())
-                                """
-                            ),
-                            {
-                                "student_id": student.id,
-                                "mentor_id": mentor.id,
-                                "topic_auto": selected_label,
-                            },
-                        )
-                    except Exception:
-                        # Не прерываем основной флоу, только логируем в stdout если что
-                        print(f"Warn: failed to insert auto assignment for {username}")
+                    # Дублируем в fullstack_topic_assignments как авто-проставление ТОЛЬКО для фуллстеков
+                    if student.training_type and student.training_type.strip().lower() == "фуллстек":
+                        try:
+                            session.execute(
+                                text(
+                                    """
+                                    INSERT INTO fullstack_topic_assignments (student_id, mentor_id, topic_manual, topic_auto, assigned_at)
+                                    VALUES (:student_id, :mentor_id, NULL, :topic_auto, NOW())
+                                    """
+                                ),
+                                {
+                                    "student_id": student.id,
+                                    "mentor_id": mentor.id,
+                                    "topic_auto": selected_label,
+                                },
+                            )
+                        except Exception:
+                            # Не прерываем основной флоу, только логируем в stdout если что
+                            print(f"Warn: failed to insert auto assignment for {username}")
                     found.append(username)
             else:
                 not_found.append(username + " (не найден)")
@@ -200,23 +201,24 @@ async def submit_topic_students(update: Update, context: ContextTypes.DEFAULT_TY
                     setattr(progress, field_name, now)
                     # Обновляем дату последнего звонка студента
                     student.last_call_date = now
-                    # Дублируем в fullstack_topic_assignments как ручное проставление
-                    try:
-                        session.execute(
-                            text(
-                                """
-                                INSERT INTO fullstack_topic_assignments (student_id, mentor_id, topic_manual, topic_auto, assigned_at)
-                                VALUES (:student_id, :mentor_id, :topic_manual, NULL, NOW())
-                                """
-                            ),
-                            {
-                                "student_id": student.id,
-                                "mentor_id": mentor.id,
-                                "topic_manual": topic,
-                            },
-                        )
-                    except Exception:
-                        print(f"Warn: failed to insert manual assignment for {username}")
+                    # Дублируем в fullstack_topic_assignments как ручное проставление ТОЛЬКО для фуллстеков
+                    if student.training_type and student.training_type.strip().lower() == "фуллстек":
+                        try:
+                            session.execute(
+                                text(
+                                    """
+                                    INSERT INTO fullstack_topic_assignments (student_id, mentor_id, topic_manual, topic_auto, assigned_at)
+                                    VALUES (:student_id, :mentor_id, :topic_manual, NULL, NOW())
+                                    """
+                                ),
+                                {
+                                    "student_id": student.id,
+                                    "mentor_id": mentor.id,
+                                    "topic_manual": topic,
+                                },
+                            )
+                        except Exception:
+                            print(f"Warn: failed to insert manual assignment for {username}")
                     found.append(username)
                 else:
                     not_found.append(username + " (нет поля)")
