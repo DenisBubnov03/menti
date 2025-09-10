@@ -89,7 +89,7 @@ async def accept_rules_callback(update: Update, context: ContextTypes.DEFAULT_TY
                 [KeyboardButton("🐛 Бесконечные баги")],
                 [KeyboardButton("📚 Отправить домашку")],
                 [KeyboardButton("📜 Мои темы и ссылки")],
-                [KeyboardButton("📅 Записаться на звонок")],
+                # [KeyboardButton("📅 Записаться на звонок")],
                 [KeyboardButton("💳 Оплата за обучение")],
                 [KeyboardButton("💸 Выплата комиссии")],
                 [KeyboardButton("📋 Правила")],

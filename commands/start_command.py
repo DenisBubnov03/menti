@@ -193,7 +193,7 @@ async def start_command(update, context):
 
         keyboard_buttons.extend([
             [KeyboardButton("📜 Мои темы и ссылки")],
-            [KeyboardButton("📅 Записаться на звонок")],
+            #[KeyboardButton("📅 Записаться на звонок")],
             [KeyboardButton("💳 Оплата за обучение")],
             [KeyboardButton("💸 Выплата комиссии")],
             [KeyboardButton("📋 Правила")],

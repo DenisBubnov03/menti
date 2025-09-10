@@ -150,17 +150,17 @@ def main():
         fallbacks=[]
     )
 
-    call_scheduling_handler = ConversationHandler(
-        entry_points=[MessageHandler(filters.Regex("^📅 Записаться на звонок$"), request_call)],
-        states={
-            CALL_SCHEDULE: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_direction_choice)],
-            CALL_SCHEDULE_DATE: [MessageHandler(filters.TEXT & ~filters.COMMAND, schedule_call_date)],
-            CALL_SCHEDULE_TIME: [MessageHandler(filters.TEXT & ~filters.COMMAND, schedule_call_time)],
-            CALL_CONFIRMATION: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, lambda update, context: ConversationHandler.END)],
-        },
-        fallbacks=[MessageHandler(filters.Regex("^Отмена$"), lambda update, context: ConversationHandler.END)]
-    )
+    # call_scheduling_handler = ConversationHandler(
+    #     entry_points=[MessageHandler(filters.Regex("^📅 Записаться на звонок$"), request_call)],
+    #     states={
+    #         CALL_SCHEDULE: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_direction_choice)],
+    #         CALL_SCHEDULE_DATE: [MessageHandler(filters.TEXT & ~filters.COMMAND, schedule_call_date)],
+    #         CALL_SCHEDULE_TIME: [MessageHandler(filters.TEXT & ~filters.COMMAND, schedule_call_time)],
+    #         CALL_CONFIRMATION: [
+    #             MessageHandler(filters.TEXT & ~filters.COMMAND, lambda update, context: ConversationHandler.END)],
+    #     },
+    #     fallbacks=[MessageHandler(filters.Regex("^Отмена$"), lambda update, context: ConversationHandler.END)]
+    # )
     payment_review_handler = ConversationHandler(
         entry_points=[MessageHandler(filters.Regex("^💰 Платежи$"), show_pending_payments)],
         states={
@@ -232,7 +232,7 @@ def main():
     application.add_handler(payment_review_handler)
     application.add_handler(MessageHandler(filters.Regex("^📅 Записи на звонки$"), show_mentor_calls))
     application.add_handler(MessageHandler(filters.Regex("^💸 Выплата комиссии$"), request_commission_payment))
-    application.add_handler(call_scheduling_handler)
+    # application.add_handler(call_scheduling_handler)
     application.add_handler(remove_mentor_handler)
     application.add_handler(mentor_handler)
     application.add_handler(broadcast_handler)
