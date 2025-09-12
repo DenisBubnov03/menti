@@ -171,9 +171,14 @@ async def get_student_progress_info(student):
             if manual_progress.m2_3_3_1_submission_date:
                 info += f"✅ Модули 2.3-3.1 сданы: {manual_progress.m2_3_3_1_submission_date.strftime('%d.%m.%Y')}\n"
             if manual_progress.m2_3_homework and manual_progress.m3_1_homework:
-                info += f"📚 ДЗ к модулям 2.3-3.1: ✅ Выполнено\n"
+                # Проверяем также тему 2.4, если поле существует
+                m2_4_done = getattr(manual_progress, 'm2_4_homework', True)  # По умолчанию True, если поле не существует
+                if m2_4_done:
+                    info += f"📚 ДЗ к модулям 2.3-2.4-3.1: ✅ Выполнено\n"
+                else:
+                    info += f"📚 ДЗ к модулям 2.3-2.4-3.1: ❌ Не выполнено (не сдана 2.4)\n"
             else:
-                info += f"📚 ДЗ к модулям 2.3-3.1: ❌ Не выполнено\n"
+                info += f"📚 ДЗ к модулям 2.3-2.4-3.1: ❌ Не выполнено\n"
                 
             if manual_progress.m3_2_start_date:
                 info += f"📅 Модуль 3.2 начат: {manual_progress.m3_2_start_date.strftime('%d.%m.%Y')}\n"

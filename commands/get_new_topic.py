@@ -170,7 +170,7 @@ async def handle_manual_direction(update: Update, context, student: Student):
                     link_3_1 = MANUAL_MODULE_3_LINKS.get("Тема 3.1")
                     await update.message.reply_text(
                         f"Ваша новая тема: {topic}\nСсылка: {link_2_3}\n\n"
-                        f"Также открыта тема 2.4!\nСсылка: https://thankful-candy-c57.notion.site/2-4-20594f774aab8197a077ef3921eaf641?source=copy_link"
+                        f"Также открыта тема 2.4!\nСсылка: https://thankful-candy-c57.notion.site/2-4-20594f774aab8197a077ef3921eaf641?source=copy_link\n\n"
                         f"Также открыта тема 3.1!\nСсылка: {link_3_1}"
                     )
                     return await back_to_main_menu(update, context)

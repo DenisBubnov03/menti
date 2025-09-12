@@ -13,6 +13,7 @@ PROGRESS_FIELD_MAPPING = {
     "Тема 1.4": "m1_homework",
     "Тема 2.1": "m2_1_homework",
     "Тема 2.3": "m2_3_homework",
+    "Тема 2.4": "m2_4_homework",
     "Тема 3.1": "m3_1_homework",
     "Тема 3.2": "m3_2_homework",
     "Тема 3.3": "m3_3_homework",
