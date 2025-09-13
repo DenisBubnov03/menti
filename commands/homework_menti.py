@@ -139,21 +139,18 @@ async def get_file_from_message(update: Update, context) -> tuple:
 
 MODULES_TOPICS = {
     "Ручное тестирование": {
-        "Модуль 1": ["Тема 1.4", 'Отмена'],
-        "Модуль 2": ["Тема 2.1", "Тема 2.3", "Тема 2.4", 'Отмена'],
-        "Модуль 3": ["Тема 3.1", "Тема 3.2", "Тема 3.3", 'Отмена'],
-        "Модуль 4": ["Тема 4.5", 'Отмена'],
-        "Модуль 5": ["Резюме/Легенда", "Отмена"],
-
-        "Отмена": []
+        "Модуль 1": ["Тема 1.4"],
+        "Модуль 2": ["Тема 2.1", "Тема 2.3", "Тема 2.4"],
+        "Модуль 3": ["Тема 3.1", "Тема 3.2", "Тема 3.3"],
+        "Модуль 4": ["Тема 4.5"],
+        "Модуль 5": ["Резюме/Легенда"],
     },
     "Автотестирование": {
-        "Модуль 1": ["Тема 1.1", "Тема 1.2", "Тема 1.3", 'Отмена'],
-        "Модуль 2": ["Тема 2.1", "Тема 2.2", "Тема 2.3", "Тема 2.4", "Тема 2.5", "Тема 2.6", "Тема 2.7", "Экзамен 2", 'Отмена'],
-        "Модуль 3": ["Тема 3.1", "Тема 3.2", "Тема 3.3", "Тема 3.4", "Тема 3.5", "Тема 3.6", "Экзамен 3", 'Отмена'],
-        "Модуль 4": ["Тема 4.1", "Тема 4.2", "Тема 4.3", "Тема 4.4", "Тема 4.5", "Экзамен 4", 'Отмена'],
-        "Модуль 5": ["Тема 5.1", "Тема 5.2", "Тема 5.3", "Тема 5.4", "Тема 5.5", "Тема 5.6", "Экзамен 5", 'Отмена'],
-        "Отмена": []
+        "Модуль 1": ["Тема 1.1", "Тема 1.2", "Тема 1.3"],
+        "Модуль 2": ["Тема 2.1", "Тема 2.2", "Тема 2.3", "Тема 2.4", "Тема 2.5", "Тема 2.6", "Тема 2.7", "Экзамен 2"],
+        "Модуль 3": ["Тема 3.1", "Тема 3.2", "Тема 3.3", "Тема 3.4", "Тема 3.5", "Тема 3.6", "Экзамен 3"],
+        "Модуль 4": ["Тема 4.1", "Тема 4.2", "Тема 4.3", "Тема 4.4", "Тема 4.5", "Экзамен 4"],
+        "Модуль 5": ["Тема 5.1", "Тема 5.2", "Тема 5.3", "Тема 5.4", "Тема 5.5", "Тема 5.6", "Экзамен 5"],
     }
 }
 
@@ -182,6 +179,7 @@ async def submit_homework(update: Update, context):
         
         # Показываем модули ручного тестирования
         keyboard = [[KeyboardButton(mod)] for mod in MODULES_TOPICS["Ручное тестирование"].keys()]
+        keyboard.append([KeyboardButton("🔙 В главное меню")])
         await update.message.reply_text(
             "📌 Выберите модуль (ручное тестирование):",
             reply_markup=ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
@@ -190,6 +188,7 @@ async def submit_homework(update: Update, context):
 
     # Если студент не фуллстек, сразу отправляем его на выбор модуля
     keyboard = [[KeyboardButton(mod)] for mod in MODULES_TOPICS[student.training_type].keys()]
+    keyboard.append([KeyboardButton("🔙 В главное меню")])
     await update.message.reply_text(
         "📌 Выберите модуль:",
         reply_markup=ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
@@ -206,11 +205,14 @@ async def submit_homework(update: Update, context):
 async def choose_topic(update: Update, context):
     """Выбор темы из модуля"""
     module = update.message.text
-    context.user_data["module"] = module  # Запоминаем модуль
     date_text = update.message.text.strip()
-    if date_text.lower() == "отмена":
-        await back_to_main_menu(update, context)  # Возврат в меню
+    
+    # Проверяем кнопку возврата в меню
+    if date_text == "🔙 В главное меню":
+        await back_to_main_menu(update, context)
         return ConversationHandler.END
+    
+    context.user_data["module"] = module  # Запоминаем модуль
     
     training_type = context.user_data.get("training_type")  # ✅ Берём уже сохранённое направление
     if not training_type or module not in MODULES_TOPICS.get(training_type, {}):
@@ -233,6 +235,7 @@ async def choose_topic(update: Update, context):
         return HOMEWORK_MODULE
 
     keyboard = [[KeyboardButton(topic)] for topic in available_topics]
+    keyboard.append([KeyboardButton("🔙 В главное меню")])
 
     await update.message.reply_text(
         "📌 Выберите тему:",
@@ -249,9 +252,12 @@ async def choose_mentor(update: Update, context):
     student_telegram = f"@{update.message.from_user.username}"
     student = get_student_by_fio_or_telegram(student_telegram)
     date_text = update.message.text.strip()
-    if date_text.lower() == "отмена":
-        await back_to_main_menu(update, context)  # Возврат в меню
-        return await back_to_main_menu(update, context)
+    
+    # Проверяем кнопку возврата в меню
+    if date_text == "🔙 В главное меню":
+        await back_to_main_menu(update, context)
+        return ConversationHandler.END
+    
     if not student:
         await update.message.reply_text("❌ Вы не зарегистрированы как студент!")
         return await back_to_main_menu(update, context)
@@ -274,7 +280,17 @@ async def choose_mentor(update: Update, context):
     context.user_data["mentor_id"] = mentor.id
     context.user_data["mentor_telegram"] = mentor.telegram
 
-    await update.message.reply_text(f"✅ Ваш ментор: {mentor.telegram}. Теперь отправьте домашнее задание.")
+    # Добавляем кнопку возврата в меню
+    keyboard = ReplyKeyboardMarkup(
+        [[KeyboardButton("🔙 В главное меню")]],
+        resize_keyboard=True,
+        one_time_keyboard=True
+    )
+    
+    await update.message.reply_text(
+        f"✅ Ваш ментор: {mentor.telegram}. Теперь отправьте домашнее задание.",
+        reply_markup=keyboard
+    )
     return HOMEWORK_MESSAGE
 
 
@@ -283,7 +299,18 @@ async def choose_mentor(update: Update, context):
 async def wait_for_homework(update: Update, context):
     """Ждём, когда студент отправит сообщение с домашним заданием"""
     context.user_data["mentor"] = update.message.text  # Запоминаем ментора
-    await update.message.reply_text("📩 Отправьте ваше домашнее задание (файл, фото, текст, голосовое и т.д.):")
+    
+    # Добавляем кнопку возврата в меню
+    keyboard = ReplyKeyboardMarkup(
+        [[KeyboardButton("🔙 В главное меню")]],
+        resize_keyboard=True,
+        one_time_keyboard=True
+    )
+    
+    await update.message.reply_text(
+        "📩 Отправьте ваше домашнее задание (файл, фото, текст, голосовое и т.д.):",
+        reply_markup=keyboard
+    )
     return HOMEWORK_MESSAGE
 
 async def save_and_forward_homework(update: Update, context):
@@ -291,6 +318,12 @@ async def save_and_forward_homework(update: Update, context):
     student_telegram = f"@{update.message.from_user.username}"
     student = get_student_by_fio_or_telegram(student_telegram)
     mentor_id = context.user_data.get("mentor_id")
+    
+    # Проверяем кнопку возврата в меню
+    if hasattr(update.message, 'text') and update.message.text == "🔙 В главное меню":
+        await back_to_main_menu(update, context)
+        return ConversationHandler.END
+    
     if not student:
         await update.message.reply_text("❌ Вы не зарегистрированы как студент!")
         return ConversationHandler.END
