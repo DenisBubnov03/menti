@@ -1,6 +1,7 @@
 from datetime import datetime
 
-from sqlalchemy import Column, Integer, String, Date, DECIMAL, ForeignKey, DateTime, Boolean, Text, Numeric, UniqueConstraint
+from sqlalchemy import Column, Integer, String, Date, DECIMAL, ForeignKey, DateTime, Boolean, Text, Numeric, \
+    UniqueConstraint, TIMESTAMP
 from sqlalchemy.orm import relationship
 
 from data_base import Base
@@ -155,3 +156,13 @@ class AIHomeworkCheck(Base):
     
     # Отношения
     homework = relationship("Homework", backref="ai_checks")
+
+class FullstackTopicAssign(Base):
+    __tablename__ = "fullstack_topic_assign"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    student_id = Column(Integer, ForeignKey("students.id"), nullable=False)
+    mentor_id = Column(Integer, ForeignKey("mentors.id"), nullable=False)
+    topic_manual = Column(String(255), nullable=True)
+    topic_auto = Column(String(255), nullable=True)
+    assigned_at = Column(TIMESTAMP, nullable=False)

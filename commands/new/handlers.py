@@ -11,6 +11,7 @@ from data_base.db import session
 from data_base.models import Student, Mentor, Homework, ManualProgress
 from utils.request_logger import log_request, log_conversation_handler
 from datetime import datetime
+""" При изменении маппинга, поменять их и в боте админа"""
 
 TOPIC_FIELD_MAPPING = {
     "1 модуль": "m1_submission_date",

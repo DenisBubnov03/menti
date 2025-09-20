@@ -56,11 +56,15 @@ async def back_to_main_menu(update: Update, context):
             [KeyboardButton("🆕 Получить новую тему")],
             [KeyboardButton("🐛 Бесконечные баги")],
         ]
-        
+        training_type = student.training_type.strip().lower() if student.training_type else ""
+        auto_mentor = session.query(Mentor).get(getattr(student, 'auto_mentor_id', None)) if getattr(student, 'auto_mentor_id', None) else None
+
         # Добавляем кнопку "Отправить домашку" только для ручного тестирования и фуллстеков
         if student.training_type in ["Ручное тестирование", "Фуллстек"]:
             keyboard_buttons.append([KeyboardButton("📚 Отправить домашку")])
-        
+        # Добавляем кнопку "Запросить назначение куратора" для фуллстеков, если не назначен какой-либо куратор
+        if training_type == "фуллстек" and (not mentor or not auto_mentor):
+            keyboard_buttons.append([KeyboardButton("👨‍🏫 Запросить назначение куратора")])
         keyboard_buttons.extend([
             [KeyboardButton("📜 Мои темы и ссылки")],
            # [KeyboardButton("📅 Записаться на звонок")],

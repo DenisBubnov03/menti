@@ -23,6 +23,7 @@ from commands.states import *
 from commands.get_new_topic import get_new_topic_entry, get_new_topic_direction, GET_TOPIC_DIRECTION
 from commands.infinite_bugs import infinite_bugs_entry, select_chapter, select_task, process_bug_report
 from commands.rules_acceptance import show_rules, accept_rules_callback
+from commands.curator_request import request_curator_assignment, select_curator_direction, confirm_curator_request
 # from commands.homework_notifications import schedule_homework_notifications, schedule_weekly_reports
 
 import os
@@ -218,10 +219,20 @@ def main():
         fallbacks=[]
     )
 
+    curator_request_handler = ConversationHandler(
+        entry_points=[MessageHandler(filters.Regex("^👨‍🏫 Запросить назначение куратора$"), request_curator_assignment)],
+        states={
+            CURATOR_DIRECTION_SELECTION: [MessageHandler(filters.TEXT & ~filters.COMMAND, select_curator_direction)],
+            CURATOR_CONFIRMATION: [MessageHandler(filters.TEXT & ~filters.COMMAND, confirm_curator_request)]
+        },
+        fallbacks=[]
+    )
+
     application.add_handler(student_progress_handler)
     application.add_handler(submit_topic_handler)
     application.add_handler(get_new_topic_handler)
     application.add_handler(infinite_bugs_handler)
+    application.add_handler(curator_request_handler)
     
     # Добавляем обработчики для правил
     application.add_handler(MessageHandler(filters.Regex("^📋 Правила$"), show_rules))

@@ -130,9 +130,7 @@ async def start_command(update, context):
                 update_session.rollback()
             finally:
                 close_session()
-            # ✅ Хардкод менторов
-
-        manual_mentor = session.query(Mentor).get(1)  # Ментор по ручному тестированию
+            # Получаем актуальных менторов студента
         mentor = session.query(Mentor).get(student.mentor_id) if student.mentor_id else None
         auto_mentor = session.query(Mentor).get(getattr(student, 'auto_mentor_id', None)) if getattr(student, 'auto_mentor_id', None) else None
 
@@ -142,13 +140,13 @@ async def start_command(update, context):
         if training_type == "фуллстек":
             mentor_info = "\n👨‍🏫 Менторы для ваших направлений:\n"
             
-            # Исправление: проверяем telegram менторов
+            # Проверяем telegram менторов
             manual_telegram = ""
-            if manual_mentor and hasattr(manual_mentor, 'telegram'):
-                if isinstance(manual_mentor.telegram, tuple):
-                    manual_telegram = manual_mentor.telegram[0]
+            if mentor and hasattr(mentor, 'telegram'):
+                if isinstance(mentor.telegram, tuple):
+                    manual_telegram = mentor.telegram[0]
                 else:
-                    manual_telegram = manual_mentor.telegram
+                    manual_telegram = mentor.telegram
             
             auto_telegram = ""
             if auto_mentor and hasattr(auto_mentor, 'telegram'):
@@ -157,7 +155,7 @@ async def start_command(update, context):
                 else:
                     auto_telegram = auto_mentor.telegram
             
-            mentor_info += f"💼 Ручное тестирование: {manual_mentor.full_name if manual_mentor else 'Не назначен'} {manual_telegram}\n"
+            mentor_info += f"💼 Ручное тестирование: {mentor.full_name if mentor else 'Не назначен'} {manual_telegram}\n"
             mentor_info += f"💻 Автотестирование: {auto_mentor.full_name if auto_mentor else 'Не назначен'} {auto_telegram}"
         elif training_type == "ручное тестирование":
             # Исправление: проверяем telegram ментора
@@ -190,6 +188,10 @@ async def start_command(update, context):
         # Добавляем кнопку "Отправить домашку" только для ручного тестирования и фуллстеков
         if student.training_type in ["Ручное тестирование", "Фуллстек"]:
             keyboard_buttons.append([KeyboardButton("📚 Отправить домашку")])
+
+        # Добавляем кнопку "Запросить назначение куратора" для фуллстеков, если не назначен какой-либо куратор
+        if training_type == "фуллстек" and (not mentor or not auto_mentor):
+            keyboard_buttons.append([KeyboardButton("👨‍🏫 Запросить назначение куратора")])
 
         keyboard_buttons.extend([
             [KeyboardButton("📜 Мои темы и ссылки")],

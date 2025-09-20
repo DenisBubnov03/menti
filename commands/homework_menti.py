@@ -165,6 +165,14 @@ async def submit_homework(update: Update, context):
         await update.message.reply_text("❌ Вы не зарегистрированы как студент!")
         return ConversationHandler.END
 
+    # Проверяем наличие куратора перед сдачей домашнего задания
+    from commands.curator_request import check_curator_before_homework
+    has_curator, message = check_curator_before_homework(student_telegram, student.training_type)
+    
+    if not has_curator:
+        await update.message.reply_text(message)
+        return ConversationHandler.END
+
     context.user_data["student_id"] = student.id
     context.user_data["training_type"] = student.training_type  # ✅ Сохраняем направление
 
