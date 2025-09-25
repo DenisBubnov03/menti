@@ -67,7 +67,7 @@ async def check_payment_debts():
                 #     chat_id=student.chat_id,
                 #     text=(
                 #         f"📢 Напоминание: вы ещё не закрыли оплату за обучение.\n"
-                #         f"Прошло более месяца с последнего платежа — {last_payment.payment_date.strftime('%d.%m.%Y')}\n\n"
+                #         f"Прошло более месяца с последнего платежа — {last_payment.payment_date.strftime('%d.%m.%Y') if hasattr(last_payment.payment_date, 'strftime') else last_payment.payment_date}\n\n"
                 #         f"Пожалуйста, внесите следующий платёж."
                 #     )
                 # )

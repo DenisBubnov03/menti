@@ -50,7 +50,10 @@ async def check_unreviewed_homework(bot: Bot):
             
             # Формируем сообщение
             hw_info = f"📚 ДЗ #{hw.id}: {student.fio} {student.telegram} - {hw.module}, {hw.topic}, ментор {mentor.telegram}\n"
-            hw_info += f"📅 Отправлено: {hw.created_at.strftime('%d.%m.%Y %H:%M')}\n"
+            if hasattr(hw.created_at, 'strftime'):
+                hw_info += f"📅 Отправлено: {hw.created_at.strftime('%d.%m.%Y %H:%M')}\n"
+            else:
+                hw_info += f"📅 Отправлено: {hw.created_at}\n"
             hw_info += f"⏰ Не проверено: {(datetime.now() - hw.created_at).days} дней\n"
             
             # Добавляем в уведомления для ментора

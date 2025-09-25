@@ -158,7 +158,7 @@ class AIHomeworkCheck(Base):
     homework = relationship("Homework", backref="ai_checks")
 
 class FullstackTopicAssign(Base):
-    __tablename__ = "fullstack_topic_assign"
+    __tablename__ = "fullstack_topic_assignments"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     student_id = Column(Integer, ForeignKey("students.id"), nullable=False)

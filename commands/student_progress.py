@@ -9,6 +9,15 @@ from commands.states import STUDENT_PROGRESS_WAITING
 from datetime import datetime, date
 
 
+def safe_date_format(date_value, default="Не указана"):
+    """Безопасное форматирование даты"""
+    if not date_value:
+        return default
+    if hasattr(date_value, 'strftime'):
+        return date_value.strftime('%d.%m.%Y')
+    return str(date_value)
+
+
 async def request_student_progress(update, context):
     """Запрашивает Telegram студента для проверки успеваемости"""
     keyboard = ReplyKeyboardMarkup(
@@ -90,7 +99,7 @@ async def get_student_progress_info(student):
     info += f"👤 ФИО: {student.fio}\n"
     info += f"📱 Telegram: {student.telegram}\n"
     info += f"Договор подписан: {'Да' if student.contract_signed else 'Нет'}\n"
-    info += f"📅 Дата начала обучения: {student.start_date.strftime('%d.%m.%Y') if student.start_date else 'Не указана'}\n"
+    info += f"📅 Дата начала обучения: {safe_date_format(student.start_date)}\n"
     info += f"🎯 Тип обучения: {student.training_type or 'Не указан'}\n"
     info += f"📈 Статус обучения: {student.training_status or 'Не указан'}\n"
     
@@ -105,7 +114,7 @@ async def get_student_progress_info(student):
     if student.company:
         info += f"🏢 Компания: {student.company}\n"
     if student.employment_date:
-        info += f"📅 Дата трудоустройства: {student.employment_date.strftime('%d.%m.%Y')}\n"
+        info += f"📅 Дата трудоустройства: {safe_date_format(student.employment_date)}\n"
     if student.salary:
         info += f"💵 Зарплата: {student.salary} руб.\n"
     if student.commission:
@@ -149,9 +158,9 @@ async def get_student_progress_info(student):
             info += f"\n🧠 Прогресс по ручному тестированию:\n"
             
             if manual_progress.m1_start_date:
-                info += f"📅 Модуль 1 начат: {manual_progress.m1_start_date.strftime('%d.%m.%Y')}\n"
+                info += f"📅 Модуль 1 начат: {safe_date_format(manual_progress.m1_start_date)}\n"
             if manual_progress.m1_submission_date:
-                info += f"✅ Модуль 1 сдан: {manual_progress.m1_submission_date.strftime('%d.%m.%Y')}\n"
+                info += f"✅ Модуль 1 сдан: {safe_date_format(manual_progress.m1_submission_date)}\n"
             if manual_progress.m1_homework:
                 info += f"📚 ДЗ к модулю 1: ✅ Выполнено\n"
             else:
@@ -160,7 +169,7 @@ async def get_student_progress_info(student):
             if manual_progress.m2_1_start_date or manual_progress.m2_2_start_date:
                 info += f"📅 Модули 2.1-2.2 начаты\n"
             if manual_progress.m2_1_2_2_submission_date:
-                info += f"✅ Модули 2.1-2.2 сданы: {manual_progress.m2_1_2_2_submission_date.strftime('%d.%m.%Y')}\n"
+                info += f"✅ Модули 2.1-2.2 сданы: {safe_date_format(manual_progress.m2_1_2_2_submission_date)}\n"
             if manual_progress.m2_1_homework:
                 info += f"📚 ДЗ к модулям 2.1-2.2: ✅ Выполнено\n"
             else:
@@ -169,7 +178,7 @@ async def get_student_progress_info(student):
             if manual_progress.m2_3_start_date or manual_progress.m3_1_start_date:
                 info += f"📅 Модули 2.3-3.1 начаты\n"
             if manual_progress.m2_3_3_1_submission_date:
-                info += f"✅ Модули 2.3-3.1 сданы: {manual_progress.m2_3_3_1_submission_date.strftime('%d.%m.%Y')}\n"
+                info += f"✅ Модули 2.3-3.1 сданы: {safe_date_format(manual_progress.m2_3_3_1_submission_date)}\n"
             if manual_progress.m2_3_homework and manual_progress.m3_1_homework:
                 # Проверяем также тему 2.4, если поле существует
                 m2_4_done = getattr(manual_progress, 'm2_4_homework', True)  # По умолчанию True, если поле не существует
@@ -181,32 +190,32 @@ async def get_student_progress_info(student):
                 info += f"📚 ДЗ к модулям 2.3-2.4-3.1: ❌ Не выполнено\n"
                 
             if manual_progress.m3_2_start_date:
-                info += f"📅 Модуль 3.2 начат: {manual_progress.m3_2_start_date.strftime('%d.%m.%Y')}\n"
+                info += f"📅 Модуль 3.2 начат: {safe_date_format(manual_progress.m3_2_start_date)}\n"
             if manual_progress.m3_2_submission_date:
-                info += f"✅ Модуль 3.2 сдан: {manual_progress.m3_2_submission_date.strftime('%d.%m.%Y')}\n"
+                info += f"✅ Модуль 3.2 сдан: {safe_date_format(manual_progress.m3_2_submission_date)}\n"
             if manual_progress.m3_2_homework:
                 info += f"📚 ДЗ к модулю 3.2: ✅ Выполнено\n"
             else:
                 info += f"📚 ДЗ к модулю 3.2: ❌ Не выполнено\n"
                 
             if manual_progress.m3_3_start_date:
-                info += f"📅 Модуль 3.3 начат: {manual_progress.m3_3_start_date.strftime('%d.%m.%Y')}\n"
+                info += f"📅 Модуль 3.3 начат: {safe_date_format(manual_progress.m3_3_start_date)}\n"
             if manual_progress.m3_3_submission_date:
-                info += f"✅ Модуль 3.3 сдан: {manual_progress.m3_3_submission_date.strftime('%d.%m.%Y')}\n"
+                info += f"✅ Модуль 3.3 сдан: {safe_date_format(manual_progress.m3_3_submission_date)}\n"
             if manual_progress.m3_3_homework:
                 info += f"📚 ДЗ к модулю 3.3: ✅ Выполнено\n"
             else:
                 info += f"📚 ДЗ к модулю 3.3: ❌ Не выполнено\n"
                 
             if manual_progress.m4_1_start_date:
-                info += f"📅 Модуль 4.1 начат: {manual_progress.m4_1_start_date.strftime('%d.%m.%Y')}\n"
+                info += f"📅 Модуль 4.1 начат: {safe_date_format(manual_progress.m4_1_start_date)}\n"
             if manual_progress.m4_1_submission_date:
-                info += f"✅ Модуль 4.1 сдан: {manual_progress.m4_1_submission_date.strftime('%d.%m.%Y')}\n"
+                info += f"✅ Модуль 4.1 сдан: {safe_date_format(manual_progress.m4_1_submission_date)}\n"
                 
             if manual_progress.m4_2_start_date or manual_progress.m4_3_start_date:
                 info += f"📅 Модули 4.2-4.3 начаты\n"
             if manual_progress.m4_2_4_3_submission_date:
-                info += f"✅ Модули 4.2-4.3 сданы: {manual_progress.m4_2_4_3_submission_date.strftime('%d.%m.%Y')}\n"
+                info += f"✅ Модули 4.2-4.3 сданы: {safe_date_format(manual_progress.m4_2_4_3_submission_date)}\n"
     
     # Информация о последнем звонке
     if student.last_call_date:
@@ -217,7 +226,7 @@ async def get_student_progress_info(student):
             except Exception:
                 pass  # fallback: оставим строку как есть
         if isinstance(last_call, (datetime, date)):
-            info += f"\n📞 Последний звонок: {last_call.strftime('%d.%m.%Y')}\n"
+            info += f"\n📞 Последний звонок: {safe_date_format(last_call)}\n"
         else:
             info += f"\n📞 Последний звонок: {last_call}\n"
     else:
