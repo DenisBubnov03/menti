@@ -6,7 +6,7 @@ from commands.rules_checker import check_rules_accepted
 from data_base.db import session
 
 from commands.states import HOMEWORK_MODULE, HOMEWORK_TOPIC, HOMEWORK_MENTOR, HOMEWORK_MESSAGE, \
-    CALL_SCHEDULE
+    CALL_SCHEDULE, HOMEWORK_DIRECTION
 from data_base.models import Homework, Student, Mentor
 from data_base.operations import get_pending_homework, approve_homework, \
     get_student_by_fio_or_telegram, get_all_mentors, get_mentor_chat_id, get_mentor_by_direction
@@ -165,44 +165,111 @@ async def submit_homework(update: Update, context):
         await update.message.reply_text("❌ Вы не зарегистрированы как студент!")
         return ConversationHandler.END
 
-    # Проверяем наличие куратора перед сдачей домашнего задания
-    from commands.curator_request import check_curator_before_homework
-    has_curator, message = check_curator_before_homework(student_telegram, student.training_type)
-    
-    if not has_curator:
-        await update.message.reply_text(message)
-        return ConversationHandler.END
-
     context.user_data["student_id"] = student.id
     context.user_data["training_type"] = student.training_type  # ✅ Сохраняем направление
 
-    # Если студент Фуллстек, ограничиваем только ручным направлением
+    # Если студент Фуллстек, предлагаем выбрать направление
     if student.training_type == "Фуллстек":
-        # Устанавливаем направление как "Ручное тестирование" для фуллстеков
-        context.user_data["training_type"] = "Ручное тестирование"
-        # Используем mentor_id студента для ручного тестирования
-        context.user_data["mentor_id"] = student.mentor_id
-        mentor = session.query(Mentor).get(student.mentor_id) if student.mentor_id else None
-        context.user_data["mentor_telegram"] = mentor.telegram if mentor else None
+        # Показываем выбор направления для фуллстеков
+        keyboard = ReplyKeyboardMarkup(
+            [
+                [KeyboardButton("💼 Ручное тестирование")],
+                [KeyboardButton("💻 Автотестирование")],
+                [KeyboardButton("🔙 В главное меню")]
+            ],
+            resize_keyboard=True,
+            one_time_keyboard=True
+        )
+        await update.message.reply_text(
+            "📌 Выберите направление, по которому хотите сдать домашнее задание:",
+            reply_markup=keyboard
+        )
+        return HOMEWORK_DIRECTION
+    else:
+        # Для не-фуллстеков проверяем куратора
+        from commands.curator_request import check_curator_before_homework
+        has_curator, message = check_curator_before_homework(student_telegram, student.training_type)
         
-        # Показываем модули ручного тестирования
-        keyboard = [[KeyboardButton(mod)] for mod in MODULES_TOPICS["Ручное тестирование"].keys()]
+        if not has_curator:
+            await update.message.reply_text(message)
+            await back_to_main_menu(update, context)
+            return ConversationHandler.END
+
+        # Если студент не фуллстек, сразу отправляем его на выбор модуля
+        keyboard = [[KeyboardButton(mod)] for mod in MODULES_TOPICS[student.training_type].keys()]
         keyboard.append([KeyboardButton("🔙 В главное меню")])
         await update.message.reply_text(
-            "📌 Выберите модуль (ручное тестирование):",
+            "📌 Выберите модуль:",
             reply_markup=ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
         )
         return HOMEWORK_MODULE
 
-    # Если студент не фуллстек, сразу отправляем его на выбор модуля
-    keyboard = [[KeyboardButton(mod)] for mod in MODULES_TOPICS[student.training_type].keys()]
+
+async def choose_homework_direction(update: Update, context):
+    """Обрабатывает выбор направления для сдачи домашнего задания (для фуллстеков)"""
+    direction_text = update.message.text.strip()
+    
+    if direction_text == "🔙 В главное меню":
+        await back_to_main_menu(update, context)
+        return ConversationHandler.END
+    
+    student_telegram = f"@{update.message.from_user.username}"
+    student = get_student_by_fio_or_telegram(student_telegram)
+    
+    if not student:
+        await update.message.reply_text("❌ Вы не зарегистрированы как студент!")
+        return ConversationHandler.END
+    
+    # Определяем направление
+    if direction_text == "💼 Ручное тестирование":
+        direction = "Ручное тестирование"
+    elif direction_text == "💻 Автотестирование":
+        direction = "Автотестирование"
+    else:
+        keyboard = ReplyKeyboardMarkup(
+            [
+                [KeyboardButton("💼 Ручное тестирование")],
+                [KeyboardButton("💻 Автотестирование")],
+                [KeyboardButton("🔙 В главное меню")]
+            ],
+            resize_keyboard=True,
+            one_time_keyboard=True
+        )
+        await update.message.reply_text(
+            "❌ Пожалуйста, выберите направление из списка:",
+            reply_markup=keyboard
+        )
+        return HOMEWORK_DIRECTION
+    
+    # Проверяем наличие куратора для выбранного направления
+    from commands.curator_request import check_curator_before_homework
+    has_curator, message = check_curator_before_homework(student_telegram, student.training_type, direction)
+    
+    if not has_curator:
+        await update.message.reply_text(message)
+        await back_to_main_menu(update, context)
+        return ConversationHandler.END
+    
+    # Сохраняем направление и устанавливаем правильного ментора
+    context.user_data["training_type"] = direction
+    
+    if direction == "Ручное тестирование":
+        context.user_data["mentor_id"] = student.mentor_id
+        mentor = session.query(Mentor).get(student.mentor_id) if student.mentor_id else None
+    else:  # Автотестирование
+        context.user_data["mentor_id"] = student.auto_mentor_id
+        mentor = session.query(Mentor).get(student.auto_mentor_id) if student.auto_mentor_id else None
+    
+    context.user_data["mentor_telegram"] = mentor.telegram if mentor else None
+    
+    # Показываем модули выбранного направления
+    keyboard = [[KeyboardButton(mod)] for mod in MODULES_TOPICS[direction].keys()]
     keyboard.append([KeyboardButton("🔙 В главное меню")])
     await update.message.reply_text(
-        "📌 Выберите модуль:",
+        f"📌 Выберите модуль ({direction.lower()}):",
         reply_markup=ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
     )
-
-    return HOMEWORK_MODULE  # ✅ Теперь студент НЕ выбирает направление после темы!
+    return HOMEWORK_MODULE
 
 
 

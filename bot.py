@@ -112,6 +112,7 @@ def main():
     homework_submission_handler = ConversationHandler(
         entry_points=[MessageHandler(filters.Regex("^📚 Отправить домашку$"), submit_homework)],
         states={
+            HOMEWORK_DIRECTION: [MessageHandler(filters.TEXT & ~filters.COMMAND, choose_homework_direction)],
             HOMEWORK_MODULE: [MessageHandler(filters.TEXT & ~filters.COMMAND, choose_topic)],
             HOMEWORK_TOPIC: [MessageHandler(filters.TEXT & ~filters.COMMAND, choose_mentor)],
             HOMEWORK_MENTOR: [MessageHandler(filters.TEXT & ~filters.COMMAND, wait_for_homework)],
