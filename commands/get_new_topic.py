@@ -332,7 +332,9 @@ async def handle_manual_direction(update: Update, context, student: Student):
         session.commit()
         await update.message.reply_text(
             "Поздравляем! Вы завершили 4 модуль. Вот ссылка на 5 модуль:\n"
-            "https://thankful-candy-c57.notion.site/5-20594f774aab81518d87db6edddd068e?source=copy_link"
+            "https://thankful-candy-c57.notion.site/5-20594f774aab81518d87db6edddd068e?source=copy_link\n"
+            "А так же ознакомьтесь с правилами дискорда, где вы будете получать помощь на собесе\n"
+            "https://elite-church-268.notion.site/256342f79ae780d09d9fd5d0185dd684?source=copy_link"
         )
         return await back_to_main_menu(update, context)
 
@@ -409,7 +411,9 @@ async def handle_auto_direction(update, context, student):
     if progress.m7_topic_passed_date and not progress.m8_start_date:
         progress.m8_start_date = datetime.now().date()
         session.commit()
-        await update.message.reply_text(f"Вам открыт 8 модуль автотестирования!\nСсылка: {AUTO_MODULE_LINKS[8]}")
+        await update.message.reply_text(f"Вам открыт 8 модуль автотестирования!\nСсылка: {AUTO_MODULE_LINKS[8]}\n"
+        "А так же ознакомьтесь с правилами дискорда, где вы будете получать помощь на собесе\n"
+        "https://elite-church-268.notion.site/256342f79ae780d09d9fd5d0185dd684?source=copy_link")
         return await back_to_main_menu(update, context)
     if progress.m8_start_date:
         await update.message.reply_text("Вы прошли все модули автотестирования!")
