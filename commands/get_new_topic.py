@@ -116,7 +116,7 @@ MANUAL_MODULE_2_LINKS = {
 
 MANUAL_MODULE_3_LINKS = {
     "Тема 3.1": "https://thankful-candy-c57.notion.site/3-1-API-1df94f774aab816a9530d320beea7bb9?source=copy_link",
-    "Тема 3.2": "https://thankful-candy-c57.notion.site/3-2-1df94f774aab818ea9c3cc95d6e23445?source=copy_link",
+    "Тема 3.2": "https://thankful-candy-c57.notion.site/3-2-20594f774aab8183b545eeb4133e9b35?source=copy_link",
     "Тема 3.3": "https://thankful-candy-c57.notion.site/3-3-SQL-20594f774aab816ca61fec3a416ecdc3?source=copy_link",
 }
 
