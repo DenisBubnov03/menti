@@ -109,9 +109,9 @@ def get_next_manual_module(progress: ManualProgress) -> int:
 MANUAL_MODULE_1_LINK = "https://thankful-candy-c57.notion.site/1-20594f774aab81db8392f01309905510?source=copy_link"
 
 MANUAL_MODULE_2_LINKS = {
-    "Тема 2.1": "https://thankful-candy-c57.notion.site/2-1-1df94f774aab8113b8d5ecb89cc6db75?source=copy_link",
-    "Тема 2.2": "https://thankful-candy-c57.notion.site/2-2-1df94f774aab8184865ef8f5ae3fdc2e?source=copy_link",
-    "Тема 2.3": "https://thankful-candy-c57.notion.site/2-3-1df94f774aab81a8a129e1bbd9cb11cd?source=copy_link",
+    "Тема 2.1": "https://thankful-candy-c57.notion.site/2-1-20594f774aab81dc8a32fabcd90c7571?source=copy_link",
+    "Тема 2.2": "https://thankful-candy-c57.notion.site/2-2-20594f774aab816fbf59d8b69a25d132?source=copy_link",
+    "Тема 2.3": "https://thankful-candy-c57.notion.site/2-3-20594f774aab811084d6c144e85c74d8?source=copy_link",
 }
 
 MANUAL_MODULE_3_LINKS = {
