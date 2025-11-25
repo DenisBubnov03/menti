@@ -24,6 +24,7 @@ from commands.get_new_topic import get_new_topic_entry, get_new_topic_direction,
 from commands.infinite_bugs import infinite_bugs_entry, select_chapter, select_task, process_bug_report
 from commands.rules_acceptance import show_rules, accept_rules_callback
 from commands.curator_request import request_curator_assignment, select_curator_direction, confirm_curator_request
+from commands.create_meeting import create_meeting_entry, select_meeting_type
 # from commands.homework_notifications import schedule_homework_notifications, schedule_weekly_reports
 
 import os
@@ -229,11 +230,20 @@ def main():
         fallbacks=[]
     )
 
+    create_meeting_handler = ConversationHandler(
+        entry_points=[MessageHandler(filters.Regex("^📹 Создание встречи$"), create_meeting_entry)],
+        states={
+            MEETING_TYPE_SELECTION: [MessageHandler(filters.TEXT & ~filters.COMMAND, select_meeting_type)]
+        },
+        fallbacks=[]
+    )
+
     application.add_handler(student_progress_handler)
     application.add_handler(submit_topic_handler)
     application.add_handler(get_new_topic_handler)
     application.add_handler(infinite_bugs_handler)
     application.add_handler(curator_request_handler)
+    application.add_handler(create_meeting_handler)
     
     # Добавляем обработчики для правил
     application.add_handler(MessageHandler(filters.Regex("^📋 Правила$"), show_rules))

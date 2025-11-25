@@ -46,7 +46,8 @@ async def start_command(update, context):
                 [KeyboardButton("➕ Добавить ментора")],
                 [KeyboardButton("📢 Сделать рассылку")],
                 [KeyboardButton("🗑 Удалить ментора")],
-                [KeyboardButton("📅 Записи на звонки")]
+                [KeyboardButton("📅 Записи на звонки")],
+                [KeyboardButton("📹 Создание встречи")]
             ],
             resize_keyboard=True
         )

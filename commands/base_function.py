@@ -29,7 +29,8 @@ async def back_to_main_menu(update: Update, context):
                     [KeyboardButton("➕ Добавить ментора")],
                     [KeyboardButton("📢 Сделать рассылку")],
                     [KeyboardButton("🗑 Удалить ментора")],
-                    [KeyboardButton("📅 Записи на звонки")]
+                    [KeyboardButton("📅 Записи на звонки")],
+                    [KeyboardButton("📹 Создание встречи")]
                 ],
                 resize_keyboard=True
             )
@@ -43,6 +44,7 @@ async def back_to_main_menu(update: Update, context):
                 [KeyboardButton("📌 Подтверждение сдачи темы")],
                 [KeyboardButton("📅 Записи на звонки")],
                 [KeyboardButton("📊 Проверить успеваемость")],
+                [KeyboardButton("📹 Создание встречи")],
             ],
             resize_keyboard=True
         )
