@@ -148,7 +148,8 @@ async def handle_manual_direction(update: Update, context, student: Student):
         if not progress.m1_start_date:
             progress.m1_start_date = datetime.now().date()
             session.commit()
-            await update.message.reply_text("Вам открыт 1 модуль ручного тестирования! https://thankful-candy-c57.notion.site/1-20594f774aab81db8392f01309905510?source=copy_link")
+            await update.message.reply_text(f"Вам открыт 1 модуль ручного тестирования! https://thankful-candy-c57.notion.site/1-20594f774aab81db8392f01309905510?source=copy_link\n"
+                                            f"А так же модуль по AI https://cyber-liver-416.notion.site/AI-2b53f89d012f80da9620e622079962cd")
             return await back_to_main_menu(update, context)
         # else: ничего не делаем, сразу идём дальше
     # --- Новая логика для 2 модуля ---
@@ -369,7 +370,8 @@ async def handle_auto_direction(update, context, student):
         session.commit()
         await update.message.reply_text(
             f"Вам открыт 1 модуль автотестирования!\nСсылка: {AUTO_MODULE_LINKS[1]}\n\n"
-            f"Вам открыт 2 модуль автотестирования!\nСсылка: {AUTO_MODULE_LINKS[2]}"
+            f"Вам открыт 2 модуль автотестирования!\nСсылка: {AUTO_MODULE_LINKS[2]}\n\n"
+            f"А так же модуль по AI https://cyber-liver-416.notion.site/AI-2b53f89d012f80da9620e622079962cd"
         )
         return await back_to_main_menu(update, context)
 
