@@ -71,10 +71,13 @@ async def create_meeting_entry(update: Update, context: ContextTypes.DEFAULT_TYP
     
     return MEETING_TYPE_SELECTION
 
+API_BASE_URL = "http://91.229.11.119:8000"  # пример, подставь свой IP/домен
+
+
 def create_backend_meeting(room, creator_telegram, meeting_type):
     try:
         resp = requests.post(
-            f"http://api:8000/api/meetings",
+            f"{API_BASE_URL}/api/meetings",
             params={
                 "room_name": room,
                 "creator": creator_telegram,
