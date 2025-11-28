@@ -262,6 +262,8 @@ async def my_topics_and_links(update: Update, context: ContextTypes.DEFAULT_TYPE
         await update.message.reply_text("❌ Вы не зарегистрированы как студент!")
         return
     msg = []
+    msg.append(f" Доп модуль:\n"
+                           f"AI: https://cyber-liver-416.notion.site/AI-2b53f89d012f80da9620e622079962cd\n")
     # Ручное тестирование
     if student.training_type.lower().startswith("ручн") or student.training_type.lower().startswith("фулл"):
         progress = session.query(ManualProgress).filter_by(student_id=student.id).first()
@@ -269,9 +271,7 @@ async def my_topics_and_links(update: Update, context: ContextTypes.DEFAULT_TYPE
             msg.append("<b>Ручное тестирование:</b>")
             # 1 модуль
             if progress.m1_start_date:
-                msg.append(f" Доп модуль:\n"
-                           f"AI: https://cyber-liver-416.notion.site/AI-2b53f89d012f80da9620e622079962cd\n"
-                           f"- Тема 1: {MANUAL_MODULE_1_LINK}")
+                msg.append(f"- Тема 1: {MANUAL_MODULE_1_LINK}")
             # 2 модуль
             if progress.m2_1_start_date:
                 msg.append(f"- Тема 2.1: {MANUAL_MODULE_2_LINKS.get('Тема 2.1', '-')}")
