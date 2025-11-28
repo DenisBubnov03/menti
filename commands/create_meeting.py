@@ -2,6 +2,7 @@ from uuid import uuid4
 from urllib.parse import urlencode
 from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import ConversationHandler, ContextTypes
+import requests
 
 from commands.base_function import back_to_main_menu
 from data_base.db import session
@@ -70,17 +71,26 @@ async def create_meeting_entry(update: Update, context: ContextTypes.DEFAULT_TYP
     
     return MEETING_TYPE_SELECTION
 
+def create_backend_meeting(room, creator_telegram, meeting_type):
+    try:
+        resp = requests.post(
+            f"http://api:8000/api/meetings",
+            params={
+                "room_name": room,
+                "creator": creator_telegram,
+                "type": meeting_type
+            },
+            timeout=3
+        )
+        print("Backend responded:", resp.text)
+    except Exception as e:
+        print("Failed to call backend:", e)
 
 @log_conversation_handler("select_meeting_type")
 async def select_meeting_type(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Обрабатывает выбор типа встречи и генерирует ссылку"""
     meeting_type_text = update.message.text.strip()
-    
-    if meeting_type_text == "🔙 В главное меню":
-        await back_to_main_menu(update, context)
-        return ConversationHandler.END
-    
-    # Определяем тип встречи
+    meeting_type = None
+
     if meeting_type_text == "✅ Зачет":
         meeting_type = "зачет"
     elif meeting_type_text == "📝 Мок":
@@ -100,24 +110,28 @@ async def select_meeting_type(update: Update, context: ContextTypes.DEFAULT_TYPE
             reply_markup=keyboard
         )
         return MEETING_TYPE_SELECTION
-    
-    # Получаем telegram создателя
+
     creator_telegram = context.user_data.get("creator_telegram")
     if not creator_telegram:
         username = update.message.from_user.username
         creator_telegram = "@" + username if username else "unknown"
-    
-    # Генерируем ссылку
-    meeting_url = generate_meeting_url(creator_telegram, meeting_type)
-    
-    # Отправляем ссылку
+
+    # генерируем имя комнаты
+    room = uuid4().hex[:10]
+
+    # вызываем API
+    create_backend_meeting(room, creator_telegram, meeting_type)
+
+    # генерируем ссылку
+    meeting_url = f"https://meet.coconutjitsi.ru/{room}?{urlencode({'creator': creator_telegram.replace('@', ''),'type': meeting_type})}"
+
     await update.message.reply_text(
         f"✅ Встреча создана!\n\n"
         f"📅 Тип: {meeting_type_text}\n"
         f"👤 Создатель: {creator_telegram}\n\n"
         f"🔗 Ссылка на встречу:\n{meeting_url}"
     )
-    
+
     await back_to_main_menu(update, context)
     return ConversationHandler.END
 
