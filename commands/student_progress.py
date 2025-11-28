@@ -42,6 +42,7 @@ async def show_student_progress(update, context):
             keyboard=[
                 [KeyboardButton("📚 Домашние задания")],
                 [KeyboardButton("📌 Подтверждение сдачи темы")],
+                [KeyboardButton("📹 Создание встречи")],
                 [KeyboardButton("📅 Записи на звонки")],
                 [KeyboardButton("📊 Проверить успеваемость")],
             ],

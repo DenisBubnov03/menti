@@ -39,15 +39,15 @@ async def start_command(update, context):
         logger.info(f"User is ADMIN")
         keyboard = ReplyKeyboardMarkup(
             keyboard=[
+                [KeyboardButton("📹 Создание встречи")],
                 [KeyboardButton("💰 Платежи")],
                 [KeyboardButton("📚 Домашние задания")],
                 [KeyboardButton("📌 Подтверждение сдачи темы")],
                 [KeyboardButton("📊 Проверить успеваемость")],
                 [KeyboardButton("➕ Добавить ментора")],
                 [KeyboardButton("📢 Сделать рассылку")],
-                [KeyboardButton("🗑 Удалить ментора")],
-                [KeyboardButton("📅 Записи на звонки")],
-                [KeyboardButton("📹 Создание встречи")]
+                [KeyboardButton("🗑 Удалить ментора")]
+                # [KeyboardButton("📅 Записи на звонки")],
             ],
             resize_keyboard=True
         )
@@ -79,7 +79,8 @@ async def start_command(update, context):
             keyboard=[
                 [KeyboardButton("📚 Домашние задания")],
                 [KeyboardButton("📌 Подтверждение сдачи темы")],
-                [KeyboardButton("📅 Записи на звонки")],
+                [KeyboardButton("📹 Создание встречи")],
+                    # [KeyboardButton("📅 Записи на звонки")],
                 [KeyboardButton("📊 Проверить успеваемость")],
             ],
             resize_keyboard=True
