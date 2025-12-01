@@ -166,3 +166,18 @@ class FullstackTopicAssign(Base):
     topic_manual = Column(String(255), nullable=True)
     topic_auto = Column(String(255), nullable=True)
     assigned_at = Column(TIMESTAMP, nullable=False)
+
+
+class Commission(Base):
+    """
+    Модель данных для таблицы Начислений (Commissions).
+    Фиксирует расчет суммы, причитающейся куратору за конкретное поступление.
+    """
+    __tablename__ = 'commissions'
+    commission_id = Column(Integer, primary_key=True)
+    receipt_id = Column(Integer, ForeignKey('receipts.receipt_id'), nullable=False)
+    mentor_id = Column(Integer, nullable=False)
+    calculated_amount = Column(DECIMAL(10, 2), nullable=False)
+    is_paid = Column(Boolean, default=False, nullable=False)
+    def __repr__(self):
+        return f"<Commission(id={self.commission_id}, receipt_id={self.receipt_id}, amount={self.calculated_amount}, paid={self.is_paid})>"
