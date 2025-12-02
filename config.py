@@ -7,3 +7,5 @@ class Config:
     AUTO_CURATOR_RESERVE_PERCENT = 0.20        # 20% от стоимости для авто куратора
     MANUAL_CALLS_TOTAL = 8                   # Всего ручных модулей
     AUTO_CALLS_TOTAL = 6
+    MANUAL_DIR_RESERVE_PERCENT = 0.30  # 20% от стоимости для ручного куратора
+    AUTO_DIR_RESERVE_PERCENT = 0.30

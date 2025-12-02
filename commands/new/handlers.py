@@ -2,7 +2,7 @@
 from classes.salary_manager import SalaryManager
 from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import ContextTypes, ConversationHandler
-from datetime import datetime
+from datetime import datetime, date
 from sqlalchemy import text
 
 from commands.base_function import back_to_main_menu
@@ -102,6 +102,7 @@ async def submit_topic_students(update: Update, context: ContextTypes.DEFAULT_TY
     salary_manager = SalaryManager()
     usernames = [u.strip() for u in update.message.text.split(",")]
     mentor_tg = "@" + update.message.from_user.username
+    TARGET_DATE = date(2025, 12, 1)
     from data_base.db import session
     from data_base.models import Mentor, Student, AutoProgress, ManualProgress
     mentor = session.query(Mentor).filter_by(telegram=mentor_tg).first()
@@ -137,7 +138,8 @@ async def submit_topic_students(update: Update, context: ContextTypes.DEFAULT_TY
                         already_submitted.append(f"{username} (сдал {existing_date})")
                         continue
                     setattr(progress, field, datetime.now().date())
-                    if student.start_date >= '2025-12-01' or (student.training_type == 'Фуллстек' and student.start_date >= '2025-11-01'):
+                    if student.start_date >= TARGET_DATE or student.training_type == 'Фуллстек' and student.start_date >= date(
+                            2025, 11, 1):
                         try:
                             salary_manager.create_commission_for_auto_task(
                                 session=session,
@@ -213,7 +215,8 @@ async def submit_topic_students(update: Update, context: ContextTypes.DEFAULT_TY
                     setattr(progress, field_name, now)
                     # Обновляем дату последнего звонка студента
                     student.last_call_date = now
-                    if student.start_date >= '2025-12-01' or (student.training_type == 'Фуллстек' and student.start_date >= '2025-11-01'):
+                    if student.start_date >= TARGET_DATE or student.training_type == 'Фуллстек' and student.start_date >= date(
+                            2025, 11, 1):
                         try:
                             salary_manager.create_commission_for_manual_task(  # <--- ВЫЗОВ
                                 session=session,
