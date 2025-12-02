@@ -175,7 +175,7 @@ class Salary(Base):
     """
     __tablename__ = 'salary'
     salary_id = Column(Integer, primary_key=True)
-    payment_id = Column(Integer, ForeignKey('payments.id'), nullable=True)
+    payment_id = Column(Integer, ForeignKey('payments.id'), nullable=False)
     calculated_amount = Column(DECIMAL(10, 2), nullable=False)
     is_paid = Column(Boolean, default=False, nullable=False)
     comment = Column(Text, nullable=True)
