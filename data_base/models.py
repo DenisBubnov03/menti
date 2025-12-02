@@ -166,3 +166,47 @@ class FullstackTopicAssign(Base):
     topic_manual = Column(String(255), nullable=True)
     topic_auto = Column(String(255), nullable=True)
     assigned_at = Column(TIMESTAMP, nullable=False)
+
+
+class Salary(Base):
+    """
+    Модель данных для таблицы Начислений (Salary).
+    Фиксирует расчет суммы, причитающейся куратору за конкретное поступление.
+    """
+    __tablename__ = 'salary'
+    salary_id = Column(Integer, primary_key=True)
+    payment_id = Column(Integer, ForeignKey('payments.id'), nullable=True)
+    calculated_amount = Column(DECIMAL(10, 2), nullable=False)
+    is_paid = Column(Boolean, default=False, nullable=False)
+    comment = Column(Text, nullable=True)
+    mentor_id = Column(Integer, nullable=False)
+
+    def __repr__(self):
+        # Используем self.salary_id для соответствия имени колонки
+        return (f"<Salary(id={self.salary_id}, payment_id={self.payment_id}, "
+                f"amount={self.calculated_amount}, paid={self.is_paid}, comment='{self.comment[:20]}...')>")
+
+
+class Payout(Base):
+    """
+    Реестр фактических выплат кураторам.
+    """
+    __tablename__ = 'payouts'
+
+    payout_id = Column(Integer, primary_key=True)
+    mentor_id = Column(Integer, nullable=False)
+
+    period_start = Column(Date, nullable=False)
+    period_end = Column(Date, nullable=False)
+
+    total_amount = Column(DECIMAL(10, 2), nullable=False)
+    payout_status = Column(String(50), nullable=False, default='pending_transfer')
+    payout_method = Column(String(50))
+
+    date_processed = Column(DateTime)
+    transaction_ref = Column(String(255))
+    date_created = Column(DateTime, default=datetime.utcnow)
+
+    def __repr__(self):
+        return (f"<Payout(id={self.payout_id}, mentor={self.mentor_id}, "
+                f"amount={self.total_amount}, status={self.payout_status})>")

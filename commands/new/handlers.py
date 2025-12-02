@@ -1,5 +1,5 @@
 # commands/submit_topic/handlers.py
-
+from classes.salary_manager import SalaryManager
 from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import ContextTypes, ConversationHandler
 from datetime import datetime
@@ -99,6 +99,7 @@ async def select_topic(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 @log_conversation_handler("submit_topic_students")
 async def submit_topic_students(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    salary_manager = SalaryManager()
     usernames = [u.strip() for u in update.message.text.split(",")]
     mentor_tg = "@" + update.message.from_user.username
     from data_base.db import session
@@ -136,6 +137,18 @@ async def submit_topic_students(update: Update, context: ContextTypes.DEFAULT_TY
                         already_submitted.append(f"{username} (сдал {existing_date})")
                         continue
                     setattr(progress, field, datetime.now().date())
+                    try:
+                        salary_manager.create_commission_for_auto_task(
+                            session=session,
+                            # 1. Используем ИМЯ АРГУМЕНТА, которое ожидает функция (mentor_id)
+                            # 2. Передаем ЗНАЧЕНИЕ, которое является ID закрепленного ментора
+                            mentor_id=student.auto_mentor_id,                            # ID сданной темы/модуля (для комментария)
+                            task_id=context.user_data.get("selected_auto_module"),
+                            topic_name=selected_label  # Название сданного модуля
+                            # Удаляем payment_data - он не нужен
+                        )
+                    except Exception as e:
+                        print(f"Warn: failed to create auto commission for {username}: {e}")
                     # Дублируем в fullstack_topic_assignments как авто-проставление ТОЛЬКО для фуллстеков
                     if student.training_type and student.training_type.strip().lower() == "фуллстек":
                         try:
@@ -202,6 +215,15 @@ async def submit_topic_students(update: Update, context: ContextTypes.DEFAULT_TY
                     setattr(progress, field_name, now)
                     # Обновляем дату последнего звонка студента
                     student.last_call_date = now
+                    try:
+                        salary_manager.create_commission_for_manual_task(  # <--- ВЫЗОВ
+                            session=session,
+                            mentor_id=mentor.id,
+                            task_id=student.id,  # Или другой ID темы, если есть
+                            topic_name=topic
+                        )
+                    except Exception as e:
+                        print(f"Warn: failed to create manual commission for {username}: {e}")
                     # Дублируем в fullstack_topic_assignments как ручное проставление ТОЛЬКО для фуллстеков
                     if student.training_type and student.training_type.strip().lower() == "фуллстек":
                         try:
