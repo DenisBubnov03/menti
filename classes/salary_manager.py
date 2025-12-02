@@ -14,18 +14,35 @@ class SalaryManager:
         base_rate_kurator = config.Config.MANUAL_CURATOR_RESERVE_PERCENT
         count_calls_total = config.Config.MANUAL_CALLS_TOTAL
         course_cost = config.Config.FULLSTACK_MANUAL_COURSE_COST
-        try:
-            calls_price = (course_cost * base_rate_kurator) / count_calls_total
-        except ZeroDivisionError:
-            calls_price = 0
+        base_rate_dir = config.Config.MANUAL_DIR_RESERVE_PERCENT
 
-        comment = (
-            f"Оплата за 1 принятую тему ручного направления. "
-            f"Расчет: ({course_cost} * {base_rate_kurator*100:.0f}%) / {count_calls_total} тем. "
-            f"Сумма платежа: {calls_price}."
-        )
+        if mentor_id != 1:
+            try:
+                calls_price = (course_cost * base_rate_kurator) / count_calls_total
+            except ZeroDivisionError:
+                calls_price = 0
 
-        return calls_price, comment
+            comment = (
+                f"Оплата за 1 принятую тему ручного направления. "
+                f"Расчет: ({course_cost} * {base_rate_kurator*100:.0f}%) / {count_calls_total} тем. "
+                f"Сумма платежа: {calls_price}."
+            )
+
+            return calls_price, comment
+        else:
+            try:
+                calls_price = (course_cost * base_rate_dir) / count_calls_total
+            except ZeroDivisionError:
+                calls_price = 0
+
+            comment = (
+                f"Оплата за 1 принятую тему ручного направления директору. "
+                f"Расчет: ({course_cost} * {base_rate_dir*100:.0f}%) / {count_calls_total} тем. "
+                f"Сумма платежа: {calls_price}."
+            )
+
+            return calls_price, comment
+
 
     def create_commission_for_manual_task(self, session: Session, mentor_id: int, task_id: int, topic_name: str):
         """
@@ -55,18 +72,33 @@ class SalaryManager:
         base_rate_kurator = config.Config.AUTO_CURATOR_RESERVE_PERCENT
         count_calls_total = config.Config.AUTO_CALLS_TOTAL
         course_cost = config.Config.FULLSTACK_AUTO_COURSE_COST
-        try:
-            calls_price = (course_cost * base_rate_kurator) / count_calls_total
-        except ZeroDivisionError:
-            calls_price = 0
+        base_rate_dir = config.Config.AUTO_DIR_RESERVE_PERCENT
+        if mentor_id != 3:
+            try:
+                calls_price = (course_cost * base_rate_kurator) / count_calls_total
+            except ZeroDivisionError:
+                calls_price = 0
 
-        comment = (
-            f"Оплата за 1 принятую тему ручного направления. "
-            f"Расчет: ({course_cost} * {base_rate_kurator*100:.0f}%) / {count_calls_total} тем. "
-            f"Сумма платежа: {calls_price}."
-        )
+            comment = (
+                f"Оплата за 1 принятую тему ручного направления. "
+                f"Расчет: ({course_cost} * {base_rate_kurator*100:.0f}%) / {count_calls_total} тем. "
+                f"Сумма платежа: {calls_price}."
+            )
 
-        return calls_price, comment
+            return calls_price, comment
+        else:
+            try:
+                calls_price = (course_cost * base_rate_dir) / count_calls_total
+            except ZeroDivisionError:
+                calls_price = 0
+
+            comment = (
+                f"Оплата за 1 принятую тему ручного направления. "
+                f"Расчет: ({course_cost} * {base_rate_dir * 100:.0f}%) / {count_calls_total} тем. "
+                f"Сумма платежа: {calls_price}."
+            )
+
+            return calls_price, comment
 
     def create_commission_for_auto_task(self, session: Session, mentor_id: int, task_id: int, topic_name: str):
         """
