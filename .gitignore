@@ -1,0 +1,17 @@
+        .data_base/db.py
+        .DS_Store
+        .env
+        .gitignore
+        .idea/
+        .venv/
+        .vscode/
+        AI_INTEGRATION_README.md
+        __pycache__/
+        classes/__pycache__/
+        commands/.DS_Store
+        commands/__pycache__/
+        commands/new/__pycache__/
+        credentials.json
+        data_base/__pycache__/
+        logs/
+        utils/__pycache__/
