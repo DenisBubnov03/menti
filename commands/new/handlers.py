@@ -141,7 +141,7 @@ async def submit_topic_students(update: Update, context: ContextTypes.DEFAULT_TY
                         continue
                     setattr(progress, field, datetime.now().date())
                     is_first_module = (selected_label == first_auto_key)  # Переменная для проверки!
-                    if student.training_type and student.training_type.strip().lower() == "фуллстек" and is_first_module:
+                    if student.training_type and student.training_type.strip().lower() == "фуллстек" and is_first_module and student.auto_mentor_id != 3:
                         try:
                             # Вызываем с ID != 1 (например, 2), чтобы выбрать AUTO_COURSE_COST
                             salary_manager.calculate_bonus_dir(
@@ -228,7 +228,7 @@ async def submit_topic_students(update: Update, context: ContextTypes.DEFAULT_TY
                     setattr(progress, field_name, now)
                     is_first_module = (topic == first_manual_key)
 
-                    if student.training_type and student.training_type.strip().lower() == "фуллстек" and is_first_module:
+                    if student.training_type and student.training_type.strip().lower() == "фуллстек" and is_first_module and student.auto_mentor_id != 1:
                         try:
                             # Вызываем с ID=1, чтобы выбрать MANUAL_COURSE_COST
                             salary_manager.calculate_bonus_dir(
