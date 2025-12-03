@@ -40,7 +40,7 @@ class SalaryManager:
             return calls_price, comment
 
 
-    def create_commission_for_manual_task(self, session: Session, mentor_id: int, task_id: int, topic_name: str):
+    def create_commission_for_manual_task(self, session: Session, mentor_id: int, telegram: str, topic_name: str):
         """
         Создает и сохраняет новую запись в salary за факт сдачи одной темы.
         """
@@ -48,7 +48,7 @@ class SalaryManager:
             mentor_id=mentor_id,
             amount=1.0  # Это фиктивное значение, т.к. оно не влияет на calls_price
         )
-        final_comment = f"Тема #{task_id}: {topic_name}. {commission_comment}"
+        final_comment = f"Принял {topic_name} у {telegram}. {commission_comment}"
         new_salary_entry = Salary(
             # ВНИМАНИЕ: payment_id должен быть NULL, если он не связан с конкретным платежом!
             # Если payment_id обязателен, то нужно создать "фиктивный" payment_id (не рекомендуется)
@@ -92,7 +92,7 @@ class SalaryManager:
 
             return calls_price, comment
 
-    def create_commission_for_auto_task(self, session: Session, mentor_id: int, task_id: int, topic_name: str):
+    def create_commission_for_auto_task(self, session: Session, mentor_id: int, telegram: str, topic_name: str):
         """
         Создает и сохраняет новую запись в salary за факт сдачи одной темы.
         """
@@ -100,7 +100,7 @@ class SalaryManager:
             mentor_id=mentor_id,
             amount=1.0  # Это фиктивное значение, т.к. оно не влияет на calls_price
         )
-        final_comment = f"Тема #{task_id}: {topic_name}. {commission_comment}"
+        final_comment = f"Принял {topic_name} у {telegram}. {commission_comment}"
         new_salary_entry = Salary(
             # ВНИМАНИЕ: payment_id должен быть NULL, если он не связан с конкретным платежом!
             # Если payment_id обязателен, то нужно создать "фиктивный" payment_id (не рекомендуется)
@@ -117,7 +117,7 @@ class SalaryManager:
         return new_salary_entry
 
     # В классе SalaryManager:
-    def calculate_bonus_dir(self, session, mentor_id: int):  # Убрали amount, т.к. он не используется
+    def calculate_bonus_dir(self, session, mentor_id: int, telegram: str):  # Убрали amount, т.к. он не используется
         # Импортируем модель Salary, если она нужна
         from data_base.models import Salary  # Предполагаем, что у вас есть такая модель
 
@@ -132,7 +132,7 @@ class SalaryManager:
                 bonus_amount = 0
 
             comment = (
-                f"Бонус директору 10% за старт обучения фуллстак ученика по ручному направлению"
+                f"Бонус директору 10% за старт обучения фуллстак ученика {telegram} по ручному направлению"
             )
 
         else:  # mentor_id != 1
@@ -143,7 +143,7 @@ class SalaryManager:
                 bonus_amount = 0
 
             comment = (
-                f"Бонус директору 10% за старт обучения фуллстак ученика по автоматическому направлению"
+                f"Бонус директору 10% за старт обучения фуллстак ученика {telegram} по автоматическому направлению"
             # Исправляем комментарий
             )
 

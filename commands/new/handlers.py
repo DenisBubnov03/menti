@@ -147,6 +147,7 @@ async def submit_topic_students(update: Update, context: ContextTypes.DEFAULT_TY
                             salary_manager.calculate_bonus_dir(
                                 session=session,  # <-- ПЕРЕДАЕМ СЕССИЮ
                                 mentor_id=3,
+                                telegram=student.telegram
                             )
                         except Exception as e:
                             print(f"Warn: failed to create director auto bonus for {username}: {e}")
@@ -156,7 +157,7 @@ async def submit_topic_students(update: Update, context: ContextTypes.DEFAULT_TY
                             salary_manager.create_commission_for_auto_task(
                                 session=session,
                                 mentor_id=student.auto_mentor_id,                            # ID сданной темы/модуля (для комментария)
-                                task_id=context.user_data.get("selected_auto_module"),
+                                telegram=student.telegram,
                                 topic_name=selected_label  # Название сданного модуля
                             )
                         except Exception as e:
@@ -228,12 +229,13 @@ async def submit_topic_students(update: Update, context: ContextTypes.DEFAULT_TY
                     setattr(progress, field_name, now)
                     is_first_module = (topic == first_manual_key)
 
-                    if student.training_type and student.training_type.strip().lower() == "фуллстек" and is_first_module and student.auto_mentor_id != 1:
+                    if student.training_type and student.training_type.strip().lower() == "фуллстек" and is_first_module and student.mentor_id != 1:
                         try:
                             # Вызываем с ID=1, чтобы выбрать MANUAL_COURSE_COST
                             salary_manager.calculate_bonus_dir(
                                 session=session,  # Передаем сессию для записи в БД
                                 mentor_id=1,
+                                telegram=student.telegram
                             )
                         except Exception as e:
                             print(f"Warn: failed to create director manual bonus for {username}: {e}")
@@ -245,7 +247,7 @@ async def submit_topic_students(update: Update, context: ContextTypes.DEFAULT_TY
                             salary_manager.create_commission_for_manual_task(  # <--- ВЫЗОВ
                                 session=session,
                                 mentor_id=mentor.id,
-                                task_id=student.id,  # Или другой ID темы, если есть
+                                telegram=student.telegram,  # Или другой ID темы, если есть
                                 topic_name=topic
                             )
                         except Exception as e:
