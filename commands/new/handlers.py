@@ -113,6 +113,8 @@ async def submit_topic_students(update: Update, context: ContextTypes.DEFAULT_TY
     not_found = []
     already_submitted = []
     if context.user_data.get("auto_flow"):
+        first_auto_key = next(iter(AUTO_MODULE_FIELD_MAPPING),
+                              None)
         # Авто-флоу: сдача модуля 2-7
         auto_modules = [f"Сдача {i} модуля" for i in range(2, 8)]
         selected_label = None
@@ -138,6 +140,16 @@ async def submit_topic_students(update: Update, context: ContextTypes.DEFAULT_TY
                         already_submitted.append(f"{username} (сдал {existing_date})")
                         continue
                     setattr(progress, field, datetime.now().date())
+                    is_first_module = (selected_label == first_auto_key)  # Переменная для проверки!
+                    if student.training_type and student.training_type.strip().lower() == "фуллстек" and is_first_module:
+                        try:
+                            # Вызываем с ID != 1 (например, 2), чтобы выбрать AUTO_COURSE_COST
+                            salary_manager.calculate_bonus_dir(
+                                session=session,  # <-- ПЕРЕДАЕМ СЕССИЮ
+                                mentor_id=3,
+                            )
+                        except Exception as e:
+                            print(f"Warn: failed to create director auto bonus for {username}: {e}")
                     if student.start_date >= TARGET_DATE or student.training_type == 'Фуллстек' and student.start_date >= date(
                             2025, 11, 1):
                         try:
@@ -196,6 +208,7 @@ async def submit_topic_students(update: Update, context: ContextTypes.DEFAULT_TY
         now = datetime.now().date()
         found = []
         not_found = []
+        first_manual_key = next(iter(TOPIC_FIELD_MAPPING), None)
         already_submitted = []
         for username in usernames:
             student = session.query(Student).filter_by(telegram=username).first()
@@ -213,6 +226,17 @@ async def submit_topic_students(update: Update, context: ContextTypes.DEFAULT_TY
                         already_submitted.append(f"{username} (сдал {existing_date})")
                         continue
                     setattr(progress, field_name, now)
+                    is_first_module = (topic == first_manual_key)
+
+                    if student.training_type and student.training_type.strip().lower() == "фуллстек" and is_first_module:
+                        try:
+                            # Вызываем с ID=1, чтобы выбрать MANUAL_COURSE_COST
+                            salary_manager.calculate_bonus_dir(
+                                session=session,  # Передаем сессию для записи в БД
+                                mentor_id=1,
+                            )
+                        except Exception as e:
+                            print(f"Warn: failed to create director manual bonus for {username}: {e}")
                     # Обновляем дату последнего звонка студента
                     student.last_call_date = now
                     if student.start_date >= TARGET_DATE or student.training_type == 'Фуллстек' and student.start_date >= date(

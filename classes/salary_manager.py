@@ -23,9 +23,7 @@ class SalaryManager:
                 calls_price = 0
 
             comment = (
-                f"Оплата за 1 принятую тему ручного направления. "
-                f"Расчет: ({course_cost} * {base_rate_kurator*100:.0f}%) / {count_calls_total} тем. "
-                f"Сумма платежа: {calls_price}."
+                "Оплата за 1 принятую тему ручного направления куратору. "
             )
 
             return calls_price, comment
@@ -36,9 +34,7 @@ class SalaryManager:
                 calls_price = 0
 
             comment = (
-                f"Оплата за 1 принятую тему ручного направления директору. "
-                f"Расчет: ({course_cost} * {base_rate_dir*100:.0f}%) / {count_calls_total} тем. "
-                f"Сумма платежа: {calls_price}."
+                "Оплата за 1 принятую тему ручного направления директору."
             )
 
             return calls_price, comment
@@ -80,9 +76,7 @@ class SalaryManager:
                 calls_price = 0
 
             comment = (
-                f"Оплата за 1 принятую тему ручного направления. "
-                f"Расчет: ({course_cost} * {base_rate_kurator*100:.0f}%) / {count_calls_total} тем. "
-                f"Сумма платежа: {calls_price}."
+                "Оплата за 1 принятую тему авто направления куратору. "
             )
 
             return calls_price, comment
@@ -93,9 +87,7 @@ class SalaryManager:
                 calls_price = 0
 
             comment = (
-                f"Оплата за 1 принятую тему ручного направления. "
-                f"Расчет: ({course_cost} * {base_rate_dir * 100:.0f}%) / {count_calls_total} тем. "
-                f"Сумма платежа: {calls_price}."
+                f"Оплата за 1 принятую тему авто направления директору. "
             )
 
             return calls_price, comment
@@ -124,3 +116,49 @@ class SalaryManager:
 
         return new_salary_entry
 
+    # В классе SalaryManager:
+    def calculate_bonus_dir(self, session, mentor_id: int):  # Убрали amount, т.к. он не используется
+        # Импортируем модель Salary, если она нужна
+        from data_base.models import Salary  # Предполагаем, что у вас есть такая модель
+
+        total_price_manual = config.Config.FULLSTACK_MANUAL_COURSE_COST
+        total_price_auto = config.Config.FULLSTACK_AUTO_COURSE_COST
+
+        if mentor_id == 1:
+            # Расчет для MANUAL_COURSE_COST
+            try:
+                bonus_amount = (total_price_manual * 0.1)
+            except ZeroDivisionError:
+                bonus_amount = 0
+
+            comment = (
+                f"Бонус директору 10% за старт обучения фуллстак ученика по ручному направлению"
+            )
+
+        else:  # mentor_id != 1
+            # Расчет для AUTO_COURSE_COST
+            try:
+                bonus_amount = (total_price_auto * 0.1)
+            except ZeroDivisionError:
+                bonus_amount = 0
+
+            comment = (
+                f"Бонус директору 10% за старт обучения фуллстак ученика по автоматическому направлению"
+            # Исправляем комментарий
+            )
+
+        # --- Создание записи о комиссии в БД ---
+        if bonus_amount > 0:
+            new_commission = Salary(
+                mentor_id=mentor_id,  # Директор - постоянный получатель бонуса
+                calculated_amount=bonus_amount,
+                comment=comment,
+                # Дополнительные поля, которые могут быть Not Null (например, is_paid, payment_id)
+                # Если payment_id не может быть NULL:
+                # payment_id=some_default_payment_id,
+                is_paid=False,
+            )
+            session.add(new_commission)
+            # ВАЖНО: session.commit() будет вызван в вызывающей функции submit_topic_students
+
+        return bonus_amount, comment  # Возвращаем рассчитанную сумму и комментарий
