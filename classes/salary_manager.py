@@ -1,286 +1,199 @@
-# salary_manager.py
 from sqlalchemy.orm import Session
-
+from data_base.models import Student, Salary, CuratorCommission, ManualProgress, \
+    AutoProgress  # Добавлены CuratorCommission и прогресс-модели
+from sqlalchemy import inspect
 import config
-# Вам нужно будет изменить этот импорт, чтобы он указывал на ваш файл:
-from data_base.models import Salary, Student
+from typing import Dict, Any
 
+# =======================================================================
+# 1. КОНСТАНТЫ И ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ (Вне класса)
+# =======================================================================
+
+# Определяем ID директоров (по вашей логике)
+DIRECTOR_ID_MANUAL = 1
+DIRECTOR_ID_AUTO = 3
+
+
+def _get_flow_roles_and_rates(student):
+    """
+    Определяет роли и процент фонда (20% или 30%) на основе привязки студента.
+    """
+
+    # 1. Определяем поток
+    is_manual = bool(student.mentor_id)
+
+    # 2. Определяем ID
+    curator_id = student.mentor_id if is_manual else student.auto_mentor_id
+    director_payout_id = DIRECTOR_ID_MANUAL if is_manual else DIRECTOR_ID_AUTO
+
+    # 3. Проверка: Является ли Куратор Директором? (для определения 30% и исключения 10% бонуса)
+    is_director_curator = (curator_id == director_payout_id)
+
+    # 30% (если Директор-Куратор) или 20% (обычный Куратор)
+    fund_percent = 0.30 if is_director_curator else 0.20
+
+    return {
+        "curator_id": curator_id,
+        "director_id": director_payout_id,
+        "is_director_curator": is_director_curator,
+        "is_manual": is_manual,
+        "fund_percent": fund_percent,
+        "comment_suffix": "ручного направления" if is_manual else "авто направления"
+    }
+
+
+def _get_theme_price_for_flow(manager_instance, mentor_id: int, is_manual: bool) -> float:
+    """Вызывает соответствующую функцию расчета цены темы для куратора/директора."""
+    if is_manual:
+        # Calls _calculate_amount_manual
+        price, _ = manager_instance._calculate_amount_manual(mentor_id=mentor_id, amount=1.0)
+    else:
+        # Calls _calculate_amount_auto
+        price, _ = manager_instance._calculate_amount_auto(mentor_id=mentor_id, amount=1.0)
+    return price
+
+
+# =======================================================================
+# 2. ОСНОВНОЙ КЛАСС MANAGER
+# =======================================================================
 
 class SalaryManager:
     """
     Класс отвечает за расчет комиссии и создание записи в таблице salary.
     """
+
+    # --- СТАРЫЕ МЕТОДЫ (Используются для расчета theme_price) ---
+
     def _calculate_amount_manual(self, mentor_id: int, amount: float) -> tuple[float, str]:
         base_rate_kurator = config.Config.MANUAL_CURATOR_RESERVE_PERCENT
         count_calls_total = config.Config.MANUAL_CALLS_TOTAL
         course_cost = config.Config.FULLSTACK_MANUAL_COURSE_COST
         base_rate_dir = config.Config.MANUAL_DIR_RESERVE_PERCENT
 
+        # Здесь используется base_rate_kurator (20%) или base_rate_dir (30%)
         if mentor_id != 1:
             try:
                 calls_price = (course_cost * base_rate_kurator) / count_calls_total
             except ZeroDivisionError:
                 calls_price = 0
-
-            comment = (
-                "Оплата за 1 принятую тему ручного направления куратору. "
-            )
-
+            comment = "Оплата за 1 принятую тему ручного направления куратору. "
             return calls_price, comment
         else:
             try:
                 calls_price = (course_cost * base_rate_dir) / count_calls_total
             except ZeroDivisionError:
                 calls_price = 0
-
-            comment = (
-                "Оплата за 1 принятую тему ручного направления директору."
-            )
-
+            comment = "Оплата за 1 принятую тему ручного направления директору."
             return calls_price, comment
-
-
-    def create_salary_for_manual_task(self, session: Session, mentor_id: int, telegram: str, topic_name: str):
-        """
-        Создает и сохраняет новую запись в salary за факт сдачи одной темы.
-        """
-        commission_sum, commission_comment = self._calculate_amount_manual(
-            mentor_id=mentor_id,
-            amount=1.0  # Это фиктивное значение, т.к. оно не влияет на calls_price
-        )
-        final_comment = f"Принял {topic_name} у {telegram}. {commission_comment}"
-        new_salary_entry = Salary(
-            # ВНИМАНИЕ: payment_id должен быть NULL, если он не связан с конкретным платежом!
-            # Если payment_id обязателен, то нужно создать "фиктивный" payment_id (не рекомендуется)
-            payment_id=None,  # Предполагаем, что поле может быть NULL
-            mentor_id=mentor_id,
-            calculated_amount=commission_sum,
-            comment=final_comment,
-            # is_paid по умолчанию FALSE
-        )
-
-        # 4. Добавляем в сессию
-        session.add(new_salary_entry)
-
-        return new_salary_entry
 
     def _calculate_amount_auto(self, mentor_id: int, amount: float) -> tuple[float, str]:
         base_rate_kurator = config.Config.AUTO_CURATOR_RESERVE_PERCENT
         count_calls_total = config.Config.AUTO_CALLS_TOTAL
         course_cost = config.Config.FULLSTACK_AUTO_COURSE_COST
         base_rate_dir = config.Config.AUTO_DIR_RESERVE_PERCENT
+
         if mentor_id != 3:
             try:
                 calls_price = (course_cost * base_rate_kurator) / count_calls_total
             except ZeroDivisionError:
                 calls_price = 0
-
-            comment = (
-                "Оплата за 1 принятую тему авто направления куратору. "
-            )
-
+            comment = "Оплата за 1 принятую тему авто направления куратору. "
             return calls_price, comment
         else:
             try:
                 calls_price = (course_cost * base_rate_dir) / count_calls_total
             except ZeroDivisionError:
                 calls_price = 0
-
-            comment = (
-                f"Оплата за 1 принятую тему авто направления директору. "
-            )
-
+            comment = f"Оплата за 1 принятую тему авто направления директору. "
             return calls_price, comment
 
-    def create_salary_for_auto_task(self, session: Session, mentor_id: int, telegram: str, topic_name: str):
+    # --- ИНИЦИАЛИЗАЦИЯ (Создание Долга) ---
+
+    def init_curator_commission(self, session: Session, student_id: int, student_salary: float):
         """
-        Создает и сохраняет новую запись в salary за факт сдачи одной темы.
+        Создает/обновляет запись о долге перед куратором (20% или 30% от ЗП ученика).
         """
-        commission_sum, commission_comment = self._calculate_amount_auto(
-            mentor_id=mentor_id,
-            amount=1.0  # Это фиктивное значение, т.к. оно не влияет на calls_price
+        from data_base.models import Student, CuratorCommission
+
+        student = session.query(Student).filter_by(id=student_id).first()
+        if not student: return None
+
+        roles = _get_flow_roles_and_rates(student)
+        if not roles["curator_id"]: return None
+
+        # Расчет Общего Бюджета Куратора (20% или 30%)
+        total_commission_value = float(student_salary) * roles["fund_percent"]
+
+        # Проверяем, нет ли уже записи
+        existing_debt = session.query(CuratorCommission).filter_by(student_id=student_id).first()
+
+        if existing_debt:
+            # Обновляем, если есть
+            existing_debt.total_amount = total_commission_value
+            existing_debt.curator_id = roles["curator_id"]
+            session.add(existing_debt)
+            return existing_debt
+
+        # Создаем новую запись
+        new_commission = CuratorCommission(
+            student_id=student_id,
+            curator_id=roles["curator_id"],
+            payment_id=None,
+            total_amount=total_commission_value,
+            paid_amount=0.0
         )
-        final_comment = f"Принял {topic_name} у {telegram}. {commission_comment}"
-        new_salary_entry = Salary(
-            # ВНИМАНИЕ: payment_id должен быть NULL, если он не связан с конкретным платежом!
-            # Если payment_id обязателен, то нужно создать "фиктивный" payment_id (не рекомендуется)
-            payment_id=None,  # Предполагаем, что поле может быть NULL
-            mentor_id=mentor_id,
-            calculated_amount=commission_sum,
-            comment=final_comment,
-            # is_paid по умолчанию FALSE
-        )
+        session.add(new_commission)
+        return new_commission
 
-        # 4. Добавляем в сессию
-        session.add(new_salary_entry)
+    # --- ПОДСЧЕТ ТЕМ (Static Method) ---
 
-        return new_salary_entry
-
-    # В классе SalaryManager:
-    def calculate_bonus_dir(self, session, mentor_id: int, telegram: str):  # Убрали amount, т.к. он не используется
-        # Импортируем модель Salary, если она нужна
-        total_price_manual = config.Config.FULLSTACK_MANUAL_COURSE_COST
-        total_price_auto = config.Config.FULLSTACK_AUTO_COURSE_COST
-
-        if mentor_id == 1:
-            # Расчет для MANUAL_COURSE_COST
-            try:
-                bonus_amount = (total_price_manual * 0.1)
-            except ZeroDivisionError:
-                bonus_amount = 0
-
-            comment = (
-                f"Бонус директору 10% за старт обучения фуллстак ученика {telegram} по ручному направлению"
-            )
-
-        else:  # mentor_id != 1
-            # Расчет для AUTO_COURSE_COST
-            try:
-                bonus_amount = (total_price_auto * 0.1)
-            except ZeroDivisionError:
-                bonus_amount = 0
-
-            comment = (
-                f"Бонус директору 10% за старт обучения фуллстак ученика {telegram} по автоматическому направлению"
-            # Исправляем комментарий
-            )
-
-        # --- Создание записи о комиссии в БД ---
-        if bonus_amount > 0:
-            new_commission = Salary(
-                mentor_id=mentor_id,  # Директор - постоянный получатель бонуса
-                calculated_amount=bonus_amount,
-                comment=comment,
-                # Дополнительные поля, которые могут быть Not Null (например, is_paid, payment_id)
-                # Если payment_id не может быть NULL:
-                # payment_id=some_default_payment_id,
-                is_paid=False,
-            )
-            session.add(new_commission)
-            # ВАЖНО: session.commit() будет вызван в вызывающей функции submit_topic_students
-
-        return bonus_amount, comment
-
-    @staticmethod  # <--- ДОБАВИТЬ ЭТОТ ДЕКОРАТОР
+    @staticmethod
     def count_all_completed_tasks(session: Session, student_id: int, is_manual_flow: bool) -> dict:
         """
-        Считает общее количество сданных тем/модулей для ОДНОГО ученика,
-        используя student_id как первичный ключ.
+        Считает общее количество сданных тем/модулей для ОДНОГО ученика.
         """
-        # 🌟 Локальный импорт моделей
+        # Локальный импорт моделей
         from data_base.models import ManualProgress, AutoProgress
 
-        # 1. Определяем модель и список полей
         if is_manual_flow:
             ProgressModel = ManualProgress
             TASK_FIELDS = [
-                'm1_submission_date', 'm2_1_2_2_submission_date',
-                'm2_3_3_1_submission_date', 'm3_2_submission_date',
-                'm3_3_submission_date', 'm4_1_submission_date',
+                'm1_submission_date', 'm2_1_2_2_submission_date', 'm2_3_3_1_submission_date',
+                'm3_2_submission_date', 'm3_3_submission_date', 'm4_1_submission_date',
                 'm4_2_4_3_submission_date', 'm4_mock_exam_passed_date'
             ]
-        else:  # Авто-флоу
+        else:
             ProgressModel = AutoProgress
             TASK_FIELDS = [
-                'm2_exam_passed_date', 'm3_exam_passed_date',
-                'm4_topic_passed_date', 'm5_topic_passed_date',
-                'm6_topic_passed_date', 'm7_topic_passed_date'
+                'm2_exam_passed_date', 'm3_exam_passed_date', 'm4_topic_passed_date',
+                'm5_topic_passed_date', 'm6_topic_passed_date', 'm7_topic_passed_date'
             ]
 
-        # 2. Находим запись прогресса по первичному ключу (самый простой запрос)
         progress = session.query(ProgressModel).filter_by(student_id=student_id).first()
-
         total_completed_tasks = 0
 
         if progress:
             completed_count = 0
-
-            # 3. Цикл по заранее известным полям
             for field_name in TASK_FIELDS:
-                # Получаем значение поля. Если None, то None
                 submission_date = getattr(progress, field_name, None)
-
-                # Если дата сдачи ЕСТЬ (не None), считаем тему сданной
                 if submission_date is not None:
                     completed_count += 1
-
             total_completed_tasks = completed_count
-        print('start count')
-        print('total completed tasks: ', total_completed_tasks)
+
         return {
             'total_tasks': total_completed_tasks,
             'details': {student_id: total_completed_tasks}
         }
 
-    def _calculate_commission_curator(self, session: Session,student_id: int, payment_amount: float) -> tuple[
-        float, str]:
-        """
-                Рассчитывает комиссию, которая должна быть выплачена куратору за счет
-                поступившего платежа. Применяется для ручного направления.
-
-                Аргументы:
-                    session (Session): Сессия БД.
-                    student_id (int): ID студента, который произвел платеж.
-                    payment_amount (float): Сумма поступившего платежа.
-
-                Возвращает:
-                    tuple[float, str]: Фактическая сумма к выплате и комментарий.
-                """
-
-        # 1. Находим студента и ответственного куратора
-        student = session.query(Student).filter_by(id=student_id).first()
-        if not student:
-            return 0.0, "Ошибка: Студент не найден."
-        mentor_id = student.mentor_id  # Берем ID ментора ручного направления
-        if not mentor_id:
-            return 0.0, "Ошибка: Ментор ручного направления не закреплен."
-
-        # 2. Определяем стоимость одной темы (используем существующий метод расчета)
-        # Важно: Считаем, что _calculate_amount_manual теперь STATIC
-        theme_price, _ = self._calculate_amount_manual(mentor_id=mentor_id, amount=1.0)
-        print('theme price: ', theme_price)
-        if theme_price <= 0:
-            return 0.0, "Ошибка: Расчетная стоимость темы равна нулю."
-
-        # 3. Подсчитываем общее количество сданных тем (ручной флоу)
-        # Важно: Считаем, что count_all_completed_tasks теперь STATIC
-        progress_data = SalaryManager.count_all_completed_tasks(session, student_id=student_id, is_manual_flow=True)
-        total_themes = progress_data['total_tasks']
-
-        # 4. Получаем данные об уже выплаченной комиссии
-        # Поле commission_paid из модели Student
-        already_paid = student.commission_paid if student.commission_paid else 0.0
-
-        # 5. Финальный Расчет
-
-        # Общая сумма, которую куратор заработал (накоплено)
-        total_accrued_commission = theme_price * total_themes
-
-        # Максимальная сумма, которую можно выплатить сейчас (разница)
-        commission_difference = total_accrued_commission - already_paid
-
-        # Сумма к выплате: не больше, чем разница, И не больше, чем текущий платеж
-        commission_to_pay = min(payment_amount, commission_difference)
-
-        if commission_to_pay <= 0:
-            comment = f"Начисление: 0.00. Накоплено: {total_accrued_commission:.2f}, Оплачено ранее: {already_paid:.2f}."
-            return 0.0, comment
-
-        comment = (
-            f"Выплата комиссии куратору  за платеж {payment_amount:.2f}. "
-            f"Накоплено: {total_accrued_commission:.2f} ({total_themes} тем * {theme_price:.2f}). "
-            f"Оплачено ранее: {already_paid:.2f}. Выплачено сейчас: {commission_to_pay:.2f}."
-        )
-
-        return commission_to_pay, comment
+    # --- ОСНОВНАЯ ФУНКЦИЯ РАСПРЕДЕЛЕНИЯ ПЛАТЕЖА ---
 
     def create_salary_entry_from_payment(self, session: Session, payment_id: int, student_id: int,
                                          payment_amount: float):
         """
-                Логика распределения входящего платежа 'Комиссия':
-                1. Директор: 10% от суммы платежа (сразу).
-                2. Куратор: 20% от суммы платежа * Коэффициент прогресса (но не больше остатка долга).
-                """
+        Логика распределения входящего платежа 'Комиссия':
+        1. Директор: 10% от суммы платежа (если не ведет студента).
+        2. Куратор/Директор: Выплата накопленной комиссии (за темы) в пределах платежа.
+        """
         from data_base.models import Student, Salary, CuratorCommission
         import config
 
@@ -288,115 +201,126 @@ class SalaryManager:
         student = session.query(Student).filter_by(id=student_id).first()
         if not student: return
 
-        # ==========================================
-        # 1. РАСЧЕТ ДИРЕКТОРА (10% от входящих денег)
-        # ==========================================
-        # 0. Расчет суммы бонуса директора (10%)
-        DIRECTOR_PERCENT = 0.10
-        director_payout = payment_amount * DIRECTOR_PERCENT
+        # 1. Получаем все долги
+        debts = session.query(CuratorCommission).filter_by(student_id=student_id).all()
+        if not debts: return
 
-        # 1. Определяем поток студента и соответствующие ID
-        curator_id = None  # ID фактического куратора студента
-        director_payout_id = None  # ID директора, который должен получить бонус (1 или 3)
-        comment_suffix = ""
+        # Константы (проверьте ID!)
+        DIRECTOR_ID_MANUAL = 1
+        DIRECTOR_ID_AUTO = 3
 
-        if student.mentor_id:
-            # Ручной поток
-            curator_id = student.mentor_id
-            director_payout_id = 1  # ID Директора ручного направления
-            comment_suffix = "ручного направления"
-        elif student.auto_mentor_id:
-            # Авто поток
-            curator_id = student.auto_mentor_id
-            director_payout_id = 3  # ID Директора авто направления (пример)
-            comment_suffix = "авто направления"
+        # Список запланированных выплат: [{'debt_record': obj, 'amount': float, 'comment': str}, ...]
+        planned_payouts = []
+        total_planned_amount = 0.0
 
         # ==========================================
-        # 2. РАСЧЕТ ДИРЕКТОРА (10% от входящих денег)
+        # ЭТАП 1: РАСЧЕТ ИДЕАЛЬНЫХ ВЫПЛАТ
         # ==========================================
-
-        if director_payout > 0 and director_payout_id is not None:
-
-            # ❗ КОРРЕКЦИЯ ЛОГИКИ: Платим 10% ТОЛЬКО если Директор НЕ является Куратором
-            if curator_id != director_payout_id:
-
-                session.add(Salary(
-                    payment_id=payment_id,
-                    mentor_id=director_payout_id,
-                    calculated_amount=director_payout,
-                    comment=f"Директор {comment_suffix}: 10% от платежа {payment_amount:.2f}",
-                    is_paid=False
-                ))
-            else:
-                # Если ID куратора совпадает с ID директора, бонус 10% пропускаем.
-                print(
-                    f"DEBUG: Директор ID {director_payout_id} является куратором студента {student_id}. Бонус 10% не начислен.")
-
-        # ==========================================
-        # 2. РАСЧЕТ КУРАТОРА
-        # ==========================================
-
-        # Ищем запись о долге по student_id
-        debt_record = session.query(CuratorCommission).filter_by(student_id=student_id).first()
-
-        # Если записи нет — значит долг не был инициализирован (студент не трудоустроен?), платить нечего.
-        if debt_record:
-
-            # А. Базовая доля куратора от ЭТОГО платежа (20%)
-            # Пример: Платеж 50 000 -> База 10 000
-            CURATOR_PAYMENT_SHARE = 0.20
-            base_curator_share = payment_amount * CURATOR_PAYMENT_SHARE
-
-            # Б. Считаем Прогресс (Коэффициент 0.0 - 1.0)
-            IS_MANUAL = bool(student.mentor_id)
-            TOTAL_CALLS = config.Config.MANUAL_CALLS_TOTAL if IS_MANUAL else config.Config.AUTO_CALLS_TOTAL
-
-            # Используем статический метод подсчета (он должен быть у вас реализован корректно)
-            progress_data = SalaryManager.count_all_completed_tasks(session, student_id, IS_MANUAL)
-            completed_themes = progress_data['total_tasks']
-
-            try:
-                progress_ratio = completed_themes / TOTAL_CALLS
-            except ZeroDivisionError:
-                progress_ratio = 0.0
-
-            # Ограничиваем прогресс 100% (чтобы не заплатить лишнего за перевыполнение)
-            if progress_ratio > 1.0: progress_ratio = 1.0
-
-            # В. Реальная сумма к выплате (База * Прогресс)
-            # Пример: 10 000 * 0.5 (50% тем) = 5 000 руб.
-            curator_payout = base_curator_share * progress_ratio
-
-            # Г. Проверка Лимита (Остаток общего долга)
-            # Сколько осталось выплатить всего по контракту? (Total - Paid)
+        for debt_record in debts:
             remaining_debt = float(debt_record.total_amount) - float(debt_record.paid_amount)
-            if remaining_debt < 0: remaining_debt = 0
+            if remaining_debt <= 0: continue
 
-            # Платим MIN(расчетная выплата, остаток долга)
-            final_curator_payout = min(curator_payout, remaining_debt)
+            mentor_id = debt_record.curator_id
+            calculated_amount = 0.0
+            comment = ""
 
-            if final_curator_payout > 0:
-                # 1. Создаем запись в Salary (конкретная выплата)
+            # --- Логика определения роли ---
+            is_bonus_receiver = (mentor_id in [DIRECTOR_ID_MANUAL, DIRECTOR_ID_AUTO]) and \
+                                (mentor_id != student.mentor_id) and \
+                                (mentor_id != student.auto_mentor_id)
+
+            if is_bonus_receiver:
+                # --- ДИРЕКТОР (БОНУС) ---
+                # Логика: Доля от платежа должна соответствовать доле долга от всей ЗП
+                if float(student.salary) > 0:
+                    share = payment_amount / float(student.salary)
+                    calculated_amount = float(debt_record.total_amount) * share
+                else:
+                    # Фоллбек: 10% от платежа, если ЗП кривая
+                    calculated_amount = payment_amount * 0.10
+
+                comment = f"Бонус Директора: доля от {payment_amount}"
+
+            else:
+                # --- КУРАТОР (ЗА РАБОТУ) ---
+                target_is_manual = (mentor_id == student.mentor_id) or (mentor_id == DIRECTOR_ID_MANUAL)
+
+                # Считаем прогресс
+                progress_data = SalaryManager.count_all_completed_tasks(session, student_id, target_is_manual)
+                completed_themes = progress_data['total_tasks']
+
+                # Цена темы = Весь Долг / Всего Тем
+                total_calls = config.Config.MANUAL_CALLS_TOTAL if target_is_manual else config.Config.AUTO_CALLS_TOTAL
+                if total_calls > 0:
+                    price_per_theme = float(debt_record.total_amount) / total_calls
+                else:
+                    price_per_theme = 0
+
+                earned_total = price_per_theme * completed_themes
+                to_pay = earned_total - float(debt_record.paid_amount)
+
+                calculated_amount = max(0.0, to_pay)
+                if student.mentor_id != 1 or student.auto_mentor_id != 3:
+                    comment = f"Куратор: {completed_themes} тем * {price_per_theme:.2f}"
+                else:
+                    comment = f"Директор: {completed_themes} тем * {price_per_theme:.2f}"
+
+            # Лимит: нельзя заплатить больше, чем остаток долга
+            calculated_amount = min(calculated_amount, remaining_debt)
+
+            if calculated_amount > 0:
+                planned_payouts.append({
+                    "debt_record": debt_record,
+                    "amount": calculated_amount,
+                    "comment": comment,
+                    "mentor_id": mentor_id,
+                    "remaining_debt_after": remaining_debt - calculated_amount  # Для инфо
+                })
+                total_planned_amount += calculated_amount
+
+        # ==========================================
+        # ЭТАП 2: БАЛАНСИРОВКА (ЕСЛИ ДЕНЕГ НЕ ХВАТАЕТ)
+        # ==========================================
+        # Если мы насчитали выплат на 60к, а платеж всего 50к -> уменьшаем всем пропорционально
+        ratio = 1.0
+        if total_planned_amount > payment_amount:
+            ratio = payment_amount / total_planned_amount
+            # Например: 50000 / 60000 = 0.8333...
+
+        # ==========================================
+        # ЭТАП 3: СОХРАНЕНИЕ
+        # ==========================================
+        for plan in planned_payouts:
+            final_amount = plan["amount"] * ratio
+
+            # Округляем до 2 знаков, чтобы не было копеек
+            final_amount = round(final_amount, 2)
+
+            if final_amount > 0:
+                # Добавляем инфо о коэффициенте в комментарий, если он был применен
+                final_comment = plan["comment"]
+                if ratio < 1.0:
+                    final_comment += f" (Скорректировано: {ratio:.2f})"
+
+                final_comment += f". Остаток долга: {plan['remaining_debt_after'] + (plan['amount'] - final_amount):.2f}"
+
+                # Запись в Salary
                 session.add(Salary(
                     payment_id=payment_id,
-                    mentor_id=debt_record.curator_id,
-                    calculated_amount=final_curator_payout,
-                    comment=(f"Куратор: 20% от {payment_amount} * Прогресс {progress_ratio:.2f}. "
-                             f"Остаток долга: {remaining_debt:.2f}"),
+                    mentor_id=plan["mentor_id"],
+                    calculated_amount=final_amount,
+                    comment=final_comment,
                     is_paid=False
                 ))
 
-                # 2. Обновляем таблицу долгов (увеличиваем выплаченное)
-                debt_record.paid_amount = float(debt_record.paid_amount) + final_curator_payout
+                # Обновление долга
+                debt_record = plan["debt_record"]
+                debt_record.paid_amount = float(debt_record.paid_amount) + final_amount
                 session.add(debt_record)
 
-                # 3. Обновляем статистику в студенте (для истории)
-                current_paid = float(student.commission_paid) if student.commission_paid else 0.0
-                student.commission_paid = current_paid + final_curator_payout
+                # Обновление студента
+                student.commission_paid = float(student.commission_paid or 0) + final_amount
                 session.add(student)
-
-        # Важно: session.commit() вызывается во внешней функции (confirm_payment)
-
     def _calculate_commission_curator_fullstack(self, session: Session, mentor_id: int, telegram: str,):
         pass
 

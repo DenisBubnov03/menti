@@ -1,7 +1,7 @@
 from datetime import datetime
 
 from sqlalchemy import Column, Integer, String, Date, DECIMAL, ForeignKey, DateTime, Boolean, Text, Numeric, \
-    UniqueConstraint, TIMESTAMP
+    UniqueConstraint, TIMESTAMP, func
 from sqlalchemy.orm import relationship
 
 from data_base import Base
@@ -210,3 +210,43 @@ class Payout(Base):
     def __repr__(self):
         return (f"<Payout(id={self.payout_id}, mentor={self.mentor_id}, "
                 f"amount={self.total_amount}, status={self.payout_status})>")
+
+class CuratorCommission(Base):
+    """
+        Таблица учета 'Потолка' (Общего обязательства) перед ментором/директором.
+        Создается при трудоустройстве.
+        """
+    __tablename__ = "curator_commissions"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+
+    # Ссылка на студента (Обязательно)
+    student_id = Column(Integer, ForeignKey("students.id"), nullable=False)
+
+    # Ментор или Директор, которому мы должны
+    curator_id = Column(Integer, ForeignKey("mentors.id"), nullable=False)
+
+    # Ссылка на платеж (Опционально, обычно NULL при создании долга)
+    payment_id = Column(Integer, ForeignKey("payments.id"), nullable=True)
+
+    # Общая сумма, которую мы обещаем выплатить (Потолок)
+    total_amount = Column(Numeric(10, 2), nullable=False, default=0)
+
+    # Сколько уже выплатили по факту
+    paid_amount = Column(Numeric(10, 2), nullable=False, default=0)
+
+    updated_at = Column(
+        TIMESTAMP,
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+    # Уникальность ПАРЫ: Один студент не может иметь два долга перед ОДНИМ и тем же ментором.
+    # Но может иметь долги перед разными менторами.
+    __table_args__ = (
+        UniqueConstraint('student_id', 'curator_id', name='uq_student_curator_debt'),
+    )
+
+    # Связи
+    student = relationship("Student", backref="commissions_debt")
+    curator = relationship("Mentor")

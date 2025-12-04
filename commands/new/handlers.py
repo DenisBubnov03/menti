@@ -154,7 +154,7 @@ async def submit_topic_students(update: Update, context: ContextTypes.DEFAULT_TY
                     if student.start_date >= TARGET_DATE or student.training_type == 'Фуллстек' and student.start_date >= date(
                             2025, 11, 1):
                         try:
-                            salary_manager.create_commission_for_auto_task(
+                            salary_manager.create_salary_for_auto_task(
                                 session=session,
                                 mentor_id=student.auto_mentor_id,                            # ID сданной темы/модуля (для комментария)
                                 telegram=student.telegram,
@@ -244,7 +244,7 @@ async def submit_topic_students(update: Update, context: ContextTypes.DEFAULT_TY
                     if student.start_date >= TARGET_DATE or student.training_type == 'Фуллстек' and student.start_date >= date(
                             2025, 11, 1):
                         try:
-                            salary_manager.create_commission_for_manual_task(  # <--- ВЫЗОВ
+                            salary_manager.create_salary_for_manual_task(  # <--- ВЫЗОВ
                                 session=session,
                                 mentor_id=mentor.id,
                                 telegram=student.telegram,  # Или другой ID темы, если есть

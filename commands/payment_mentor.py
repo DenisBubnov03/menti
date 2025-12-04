@@ -7,7 +7,7 @@ from commands.states import PAYMENT_CONFIRMATION
 from data_base.db import session
 from data_base.models import Student, Mentor, Payment
 from data_base.operations import update_student_payment, get_student_by_fio_or_telegram
-
+from classes.salary_manager import SalaryManager # <--- Убедитесь, что этот импорт есть
 
 
 async def show_pending_payments(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -113,11 +113,14 @@ async def check_payment_by_id(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 
 async def confirm_payment(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    # Инициализация менеджера
+    salary_manager = SalaryManager()
+
     # Проверяем кнопку отмены
     if update.message.text and update.message.text.strip().lower() in ["отменить", "🔙 отменить"]:
         await update.message.reply_text("❌ Подтверждение платежа отменено.")
         return await back_to_main_menu(update, context)
-    
+
     payment_id = context.user_data.get("payment_id")
     student_id = context.user_data.get("student_id")
     amount = context.user_data.get("amount")
@@ -131,18 +134,35 @@ async def confirm_payment(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Обновляем платёж
     payment.status = "подтвержден"
+
+    # 🌟 БЛОК РАСЧЕТА КОМИССИИ (СОГЛАСНО ВАШЕЙ ЛОГИКЕ)
     if payment.comment == "Комиссия":
-        student.commission_paid = (student.commission_paid or 0) + amount
+
+        # 🚀 ВЫЗОВ РАСЧЕТА КОМИССИИ И ЗАПИСИ
+        # create_salary_entry_from_payment:
+        # 1. Рассчитает ЗП куратору
+        # 2. Создаст запись в таблице salary
+        # 3. ОБНОВИТ student.commission_paid (КРИТИЧЕСКИЙ ШАГ)
+        try:
+            print('start count comission')
+            salary_manager.create_salary_entry_from_payment(
+                session=session,
+                payment_id=payment_id,
+                student_id=student_id,
+                payment_amount=amount
+            )
+        except Exception as e:
+            print(f"Warn: failed to create commission entry for payment {payment_id}: {e}")
+
+        # Убираем: student.commission_paid = (student.commission_paid or 0) + amount
+        # (Это предотвращает двойное увеличение, так как это делает manager.create_salary_entry_from_payment)
     else:
+        # 🌟 БЛОК ОСНОВНОГО ПЛАТЕЖА (БЕЗ РАСЧЕТА ЗП КУРАТОРУ)
         student.payment_amount = (student.payment_amount or 0) + amount
+
+        # ✅ Проверка полной оплаты
         if student.payment_amount >= (student.total_cost or 0):
             student.fully_paid = "Да"
-
-    # student.payment_amount = (student.payment_amount or 0) + amount
-
-    # ✅ Если студент оплатил всё — проставляем fully_paid = "Да"
-    if student.payment_amount >= (student.total_cost or 0):
-        student.fully_paid = "Да"
 
     session.commit()
 
@@ -155,7 +175,6 @@ async def confirm_payment(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text("✅ Платёж подтверждён и добавлен к сумме оплаты.")
     return await back_to_main_menu(update, context)
-
 
 async def reject_payment(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Проверяем кнопку отмены
