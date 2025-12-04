@@ -266,6 +266,7 @@ def extract_text(filename: str, content: bytes) -> str:
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(min=0.5, max=4))
 def call_llm_with_file(filename: str, file_content: bytes) -> str:
     """Вызов LLM с прямым файлом"""
+    mime_type = "unknown"  # <--- ДОБАВИТЬ ЭТУ СТРОКУ
     try:
         if not OPENAI_API_KEY:
             raise ValueError("OPENAI_API_KEY не установлен")
