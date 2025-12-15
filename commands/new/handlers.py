@@ -97,72 +97,119 @@ async def select_topic(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Введите Telegram юзернеймы студентов через запятую (например: @user1, @user2):")
         return SUBMIT_TOPIC_STUDENTS
 
+
 @log_conversation_handler("submit_topic_students")
 async def submit_topic_students(update: Update, context: ContextTypes.DEFAULT_TYPE):
     salary_manager = SalaryManager()
     usernames = [u.strip() for u in update.message.text.split(",")]
     mentor_tg = "@" + update.message.from_user.username
     TARGET_DATE = date(2025, 12, 1)
+
     from data_base.db import session
-    from data_base.models import Mentor, Student, AutoProgress, ManualProgress
+    from data_base.models import Mentor, Student, AutoProgress, ManualProgress, Salary
+    from sqlalchemy import text  # Нужно для raw sql insert
+
     mentor = session.query(Mentor).filter_by(telegram=mentor_tg).first()
     if not mentor:
         await update.message.reply_text("❌ Вы не зарегистрированы как ментор.")
         return await back_to_main_menu(update, context)
+
+    # === МАППИНГ ПОЛЕЙ МЕНТОРОВ (ВАРИАНТ 3: ИМЕННАЯ МЕТКА) ===
+    # Сопоставляем поле даты с полем ID ментора
+    AUTO_MENTOR_FIELDS = {
+        'm2_exam_passed_date': 'm2_exam_mentor_id',
+        'm3_exam_passed_date': 'm3_exam_mentor_id',
+        'm4_topic_passed_date': 'm4_topic_mentor_id',
+        'm5_topic_passed_date': 'm5_topic_mentor_id',
+        'm6_topic_passed_date': 'm6_topic_mentor_id',
+        'm7_topic_passed_date': 'm7_topic_mentor_id'
+    }
+
+    MANUAL_MENTOR_FIELDS = {
+        'm1_submission_date': 'm1_mentor_id',
+        'm2_1_2_2_submission_date': 'm2_1_2_2_mentor_id',
+        'm2_3_3_1_submission_date': 'm2_3_3_1_mentor_id',
+        'm3_2_submission_date': 'm3_2_mentor_id',
+        'm3_3_submission_date': 'm3_3_mentor_id',
+        'm4_1_submission_date': 'm4_1_mentor_id',
+        'm4_2_4_3_submission_date': 'm4_2_4_3_mentor_id',
+        'm4_mock_exam_passed_date': 'm4_mock_exam_mentor_id'
+    }
+    # ========================================================
+
     found = []
     not_found = []
     already_submitted = []
+
+    # ---------------- АВТО ФЛОУ ----------------
     if context.user_data.get("auto_flow"):
-        first_auto_key = next(iter(AUTO_MODULE_FIELD_MAPPING),
-                              None)
-        # Авто-флоу: сдача модуля 2-7
+        first_auto_key = next(iter(AUTO_MODULE_FIELD_MAPPING), None)
         auto_modules = [f"Сдача {i} модуля" for i in range(2, 8)]
         selected_label = None
         for label in auto_modules:
             if context.user_data.get("selected_auto_module") == int(label.split()[1]):
                 selected_label = label
                 break
+
         field = AUTO_MODULE_FIELD_MAPPING.get(selected_label)
+
         for username in usernames:
             student = session.query(Student).filter_by(telegram=username).first()
             if student:
                 if student.auto_mentor_id != mentor.id:
                     not_found.append(username + " (не ваш студент)")
                     continue
+
                 progress = session.query(AutoProgress).filter_by(student_id=student.id).first()
                 if not progress:
                     progress = AutoProgress(student_id=student.id)
                     session.add(progress)
+
                 if field and hasattr(progress, field):
                     current_date = getattr(progress, field)
                     if current_date:
-                        existing_date = current_date.strftime("%d.%m.%Y") if hasattr(current_date, 'strftime') else str(current_date)
+                        existing_date = current_date.strftime("%d.%m.%Y") if hasattr(current_date, 'strftime') else str(
+                            current_date)
                         already_submitted.append(f"{username} (сдал {existing_date})")
                         continue
+
+                    # 1. Ставим дату
                     setattr(progress, field, datetime.now().date())
-                    is_first_module = (selected_label == first_auto_key)  # Переменная для проверки!
+
+                    # 2. 🔥 ВАЖНО: Ставим метку ментора (Вариант 3)
+                    mentor_field_name = AUTO_MENTOR_FIELDS.get(field)
+                    if mentor_field_name and hasattr(progress, mentor_field_name):
+                        setattr(progress, mentor_field_name, mentor.id)
+
+                    is_first_module = (selected_label == first_auto_key)
+
+                    # Бонус директору (если нужно)
                     if student.training_type and student.training_type.strip().lower() == "фуллстек" and is_first_module and student.auto_mentor_id != 3:
                         try:
-                            # Вызываем с ID != 1 (например, 2), чтобы выбрать AUTO_COURSE_COST
                             salary_manager.calculate_bonus_dir(
-                                session=session,  # <-- ПЕРЕДАЕМ СЕССИЮ
+                                session=session,
                                 mentor_id=3,
-                                telegram=student.telegram
+                                telegram=student.telegram,
+                                student_id=student.id
                             )
                         except Exception as e:
                             print(f"Warn: failed to create director auto bonus for {username}: {e}")
-                    if student.start_date >= TARGET_DATE or student.training_type == 'Фуллстек' and student.start_date >= date(
-                            2025, 11, 1):
+
+                    # Комиссия за тему
+                    if student.start_date >= TARGET_DATE or (
+                            student.training_type == 'Фуллстек' and student.start_date >= date(2025, 11, 1)):
                         try:
-                            salary_manager.create_salary_for_auto_task(
+                            salary_manager.create_commission_for_auto_task(
                                 session=session,
-                                mentor_id=student.auto_mentor_id,                            # ID сданной темы/модуля (для комментария)
+                                mentor_id=student.auto_mentor_id,
                                 telegram=student.telegram,
-                                topic_name=selected_label  # Название сданного модуля
+                                topic_name=selected_label,
+                                student_id=student.id
                             )
                         except Exception as e:
                             print(f"Warn: failed to create auto commission for {username}: {e}")
-                    # Дублируем в fullstack_topic_assignments как авто-проставление ТОЛЬКО для фуллстеков
+
+                    # Дублирование для фуллстека
                     if student.training_type and student.training_type.strip().lower() == "фуллстек":
                         try:
                             session.execute(
@@ -179,30 +226,23 @@ async def submit_topic_students(update: Update, context: ContextTypes.DEFAULT_TY
                                 },
                             )
                         except Exception:
-                            # Не прерываем основной флоу, только логируем в stdout если что
                             print(f"Warn: failed to insert auto assignment for {username}")
+
                     found.append(username)
             else:
                 not_found.append(username + " (не найден)")
+
         session.commit()
+        # ... (код отправки сообщений о результатах) ...
         msg_parts = []
-        if found:
-            msg_parts.append(f"✅ Модуль сдан: {', '.join(found)}")
-        if already_submitted:
-            msg_parts.append(f"ℹ️ Уже отмечены как сдавшие: {', '.join(already_submitted)}")
-        if not_found:
-            msg_parts.append(f"⚠️ Проблемы с: {', '.join(not_found)}")
-        if msg_parts:
-            await update.message.reply_text("\n".join(msg_parts))
-        else:
-            await update.message.reply_text("ℹ️ Нет студентов для обработки")
+        if found: msg_parts.append(f"✅ Модуль сдан: {', '.join(found)}")
+        if already_submitted: msg_parts.append(f"ℹ️ Уже отмечены: {', '.join(already_submitted)}")
+        if not_found: msg_parts.append(f"⚠️ Проблемы: {', '.join(not_found)}")
+        await update.message.reply_text("\n".join(msg_parts) if msg_parts else "ℹ️ Нет студентов")
         return await back_to_main_menu(update, context)
+
+    # ---------------- РУЧНОЙ ФЛОУ ----------------
     else:
-        # Старый ручной флоу (оставить как есть)
-        # ... существующий код submit_topic_students ...
-        # (оставить без изменений)
-        # ...
-        # (ниже не трогать)
         usernames = [u.strip() for u in update.message.text.split(",")]
         topic = context.user_data["selected_topic_label"]
         field_name = TOPIC_FIELD_MAPPING.get(topic)
@@ -211,48 +251,63 @@ async def submit_topic_students(update: Update, context: ContextTypes.DEFAULT_TY
         not_found = []
         first_manual_key = next(iter(TOPIC_FIELD_MAPPING), None)
         already_submitted = []
+
         for username in usernames:
             student = session.query(Student).filter_by(telegram=username).first()
             if student:
-                # Проверка принадлежности студента ментору
                 if not (student.mentor_id == mentor.id or student.auto_mentor_id == mentor.id):
                     not_found.append(username + " (не ваш студент)")
                     continue
+
                 progress = session.query(ManualProgress).filter_by(student_id=student.id).first()
                 if progress and field_name and hasattr(progress, field_name):
-                    # Проверяем, не сдана ли уже тема
                     current_date = getattr(progress, field_name)
                     if current_date:
-                        existing_date = current_date.strftime("%d.%m.%Y") if hasattr(current_date, 'strftime') else str(current_date)
+                        existing_date = current_date.strftime("%d.%m.%Y") if hasattr(current_date, 'strftime') else str(
+                            current_date)
                         already_submitted.append(f"{username} (сдал {existing_date})")
                         continue
+
+                    # 1. Ставим дату
                     setattr(progress, field_name, now)
+
+                    # 2. 🔥 ВАЖНО: Ставим метку ментора (Вариант 3)
+                    mentor_field_name = MANUAL_MENTOR_FIELDS.get(field_name)
+                    if mentor_field_name and hasattr(progress, mentor_field_name):
+                        setattr(progress, mentor_field_name, mentor.id)
+
                     is_first_module = (topic == first_manual_key)
 
+                    # Бонус директору
                     if student.training_type and student.training_type.strip().lower() == "фуллстек" and is_first_module and student.mentor_id != 1:
                         try:
-                            # Вызываем с ID=1, чтобы выбрать MANUAL_COURSE_COST
                             salary_manager.calculate_bonus_dir(
-                                session=session,  # Передаем сессию для записи в БД
+                                session=session,
                                 mentor_id=1,
-                                telegram=student.telegram
+                                telegram=student.telegram,
+                                student_id=student.id
                             )
                         except Exception as e:
                             print(f"Warn: failed to create director manual bonus for {username}: {e}")
-                    # Обновляем дату последнего звонка студента
+
+                    # Обновляем звонок
                     student.last_call_date = now
-                    if student.start_date >= TARGET_DATE or student.training_type == 'Фуллстек' and student.start_date >= date(
-                            2025, 11, 1):
+
+                    # Комиссия
+                    if student.start_date >= TARGET_DATE or (
+                            student.training_type == 'Фуллстек' and student.start_date >= date(2025, 11, 1)):
                         try:
-                            salary_manager.create_salary_for_manual_task(  # <--- ВЫЗОВ
+                            salary_manager.create_commission_for_manual_task(
                                 session=session,
                                 mentor_id=mentor.id,
-                                telegram=student.telegram,  # Или другой ID темы, если есть
-                                topic_name=topic
+                                telegram=student.telegram,
+                                topic_name=topic,
+                                student_id=student.id
                             )
                         except Exception as e:
                             print(f"Warn: failed to create manual commission for {username}: {e}")
-                    # Дублируем в fullstack_topic_assignments как ручное проставление ТОЛЬКО для фуллстеков
+
+                    # Дублирование для фуллстека
                     if student.training_type and student.training_type.strip().lower() == "фуллстек":
                         try:
                             session.execute(
@@ -270,21 +325,18 @@ async def submit_topic_students(update: Update, context: ContextTypes.DEFAULT_TY
                             )
                         except Exception:
                             print(f"Warn: failed to insert manual assignment for {username}")
+
                     found.append(username)
                 else:
                     not_found.append(username + " (нет поля)")
             else:
                 not_found.append(username + " (не найден)")
+
         session.commit()
+        # ... (код отправки сообщений о результатах) ...
         msg_parts = []
-        if found:
-            msg_parts.append(f"✅ Дата сдачи темы '{topic}' проставлена: {', '.join(found)}")
-        if already_submitted:
-            msg_parts.append(f"ℹ️ Уже сдали тему '{topic}': {', '.join(already_submitted)}")
-        if not_found:
-            msg_parts.append(f"⚠️ Проблемы с: {', '.join(not_found)}")
-        if msg_parts:
-            await update.message.reply_text("\n".join(msg_parts))
-        else:
-            await update.message.reply_text("ℹ️ Нет студентов для обработки")
+        if found: msg_parts.append(f"✅ Дата сдачи темы '{topic}' проставлена: {', '.join(found)}")
+        if already_submitted: msg_parts.append(f"ℹ️ Уже сдали тему '{topic}': {', '.join(already_submitted)}")
+        if not_found: msg_parts.append(f"⚠️ Проблемы: {', '.join(not_found)}")
+        await update.message.reply_text("\n".join(msg_parts) if msg_parts else "ℹ️ Нет студентов")
         return await back_to_main_menu(update, context)
