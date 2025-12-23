@@ -109,6 +109,14 @@ class ManualProgress(Base):
     m4_5_homework = Column(Boolean)
     m4_mock_exam_passed_date = Column(Date)
     m5_start_date = Column(Date)
+    m1_mentor_id = Column(Integer, nullable=True)
+    m2_1_2_2_mentor_id = Column(Integer, nullable=True)
+    m2_3_3_1_mentor_id = Column(Integer, nullable=True)
+    m3_2_mentor_id = Column(Integer, nullable=True)
+    m3_3_mentor_id = Column(Integer, nullable=True)
+    m4_1_mentor_id = Column(Integer, nullable=True)
+    m4_2_4_3_mentor_id = Column(Integer, nullable=True)
+    m4_mock_exam_mentor_id = Column(Integer, nullable=True)
 
     def __repr__(self):
         return f"<Payment(id={self.id}, student_id={self.student_id}, mentor_id={self.mentor_id}, amount={self.amount}, date={self.payment_date})>"
@@ -139,6 +147,12 @@ class AutoProgress(Base):
     m5_topic_passed_date = Column(Date)
     m6_topic_passed_date = Column(Date)
     m7_topic_passed_date = Column(Date)
+    m2_exam_mentor_id = Column(Integer, nullable=True)
+    m3_exam_mentor_id = Column(Integer, nullable=True)
+    m4_topic_mentor_id = Column(Integer, nullable=True)
+    m5_topic_mentor_id = Column(Integer, nullable=True)
+    m6_topic_mentor_id = Column(Integer, nullable=True)
+    m7_topic_mentor_id = Column(Integer, nullable=True)
 
 
 class AIHomeworkCheck(Base):
@@ -180,6 +194,7 @@ class Salary(Base):
     is_paid = Column(Boolean, default=False, nullable=False)
     comment = Column(Text, nullable=True)
     mentor_id = Column(Integer, nullable=False)
+    date_calculated = Column(DateTime, default=datetime.now)  # Или Date
 
     def __repr__(self):
         # Используем self.salary_id для соответствия имени колонки
@@ -250,3 +265,15 @@ class CuratorCommission(Base):
     # Связи
     student = relationship("Student", backref="commissions_debt")
     curator = relationship("Mentor")
+
+class CareerConsultant(Base):
+    __tablename__ = "career_consultants"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    telegram = Column(String(50), unique=True, nullable=False)
+    full_name = Column(String(255), nullable=False)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(Date, nullable=True)
+
+    # Отношения
+    # students = relationship("Student", back_populates="career_consultant")

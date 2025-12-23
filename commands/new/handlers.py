@@ -8,9 +8,9 @@ from sqlalchemy import text
 from commands.base_function import back_to_main_menu
 from commands.states import SUBMIT_TOPIC_SELECT, SUBMIT_TOPIC_STUDENTS
 from data_base.db import session
-from data_base.models import Student, Mentor, Homework, ManualProgress
+from data_base.models import Student, Mentor, Homework, ManualProgress, AutoProgress
 from utils.request_logger import log_request, log_conversation_handler
-from datetime import datetime
+
 """ При изменении маппинга, поменять их и в боте админа"""
 
 TOPIC_FIELD_MAPPING = {
@@ -38,12 +38,11 @@ AUTO_MODULE_FIELD_MAPPING = {
 async def start_topic_submission(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Выбор темы (уже с модулем)"""
     mentor_tg = "@" + update.message.from_user.username
-    from data_base.db import session
-    from data_base.models import Mentor
     mentor = session.query(Mentor).filter_by(telegram=mentor_tg).first()
     if not mentor:
         await update.message.reply_text("❌ Вы не зарегистрированы как ментор.")
         return await back_to_main_menu(update, context)
+
     if "автотестирование" in mentor.direction.lower():
         # Авто-флоу: выбор модуля 2-7
         auto_modules = [f"Сдача {i} модуля" for i in range(2, 8)]
@@ -66,6 +65,7 @@ async def start_topic_submission(update: Update, context: ContextTypes.DEFAULT_T
         context.user_data["auto_flow"] = False
         return SUBMIT_TOPIC_SELECT
 
+
 @log_conversation_handler("select_topic")
 async def select_topic(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_input = update.message.text.strip()
@@ -82,7 +82,8 @@ async def select_topic(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             return SUBMIT_TOPIC_SELECT
         context.user_data["selected_auto_module"] = int(user_input.split()[1])
-        await update.message.reply_text("Введите Telegram юзернеймы студентов через запятую (например: @user1, @user2):")
+        await update.message.reply_text(
+            "Введите Telegram юзернеймы студентов через запятую (например: @user1, @user2):")
         return SUBMIT_TOPIC_STUDENTS
     else:
         if user_input not in TOPIC_FIELD_MAPPING:
@@ -94,7 +95,8 @@ async def select_topic(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             return SUBMIT_TOPIC_SELECT
         context.user_data["selected_topic_label"] = user_input
-        await update.message.reply_text("Введите Telegram юзернеймы студентов через запятую (например: @user1, @user2):")
+        await update.message.reply_text(
+            "Введите Telegram юзернеймы студентов через запятую (например: @user1, @user2):")
         return SUBMIT_TOPIC_STUDENTS
 
 
@@ -105,17 +107,12 @@ async def submit_topic_students(update: Update, context: ContextTypes.DEFAULT_TY
     mentor_tg = "@" + update.message.from_user.username
     TARGET_DATE = date(2025, 12, 1)
 
-    from data_base.db import session
-    from data_base.models import Mentor, Student, AutoProgress, ManualProgress, Salary
-    from sqlalchemy import text  # Нужно для raw sql insert
-
     mentor = session.query(Mentor).filter_by(telegram=mentor_tg).first()
     if not mentor:
         await update.message.reply_text("❌ Вы не зарегистрированы как ментор.")
         return await back_to_main_menu(update, context)
 
     # === МАППИНГ ПОЛЕЙ МЕНТОРОВ (ВАРИАНТ 3: ИМЕННАЯ МЕТКА) ===
-    # Сопоставляем поле даты с полем ID ментора
     AUTO_MENTOR_FIELDS = {
         'm2_exam_passed_date': 'm2_exam_mentor_id',
         'm3_exam_passed_date': 'm3_exam_mentor_id',
@@ -135,7 +132,6 @@ async def submit_topic_students(update: Update, context: ContextTypes.DEFAULT_TY
         'm4_2_4_3_submission_date': 'm4_2_4_3_mentor_id',
         'm4_mock_exam_passed_date': 'm4_mock_exam_mentor_id'
     }
-    # ========================================================
 
     found = []
     not_found = []
@@ -143,7 +139,6 @@ async def submit_topic_students(update: Update, context: ContextTypes.DEFAULT_TY
 
     # ---------------- АВТО ФЛОУ ----------------
     if context.user_data.get("auto_flow"):
-        first_auto_key = next(iter(AUTO_MODULE_FIELD_MAPPING), None)
         auto_modules = [f"Сдача {i} модуля" for i in range(2, 8)]
         selected_label = None
         for label in auto_modules:
@@ -165,6 +160,12 @@ async def submit_topic_students(update: Update, context: ContextTypes.DEFAULT_TY
                     progress = AutoProgress(student_id=student.id)
                     session.add(progress)
 
+                # 🔥 НОВАЯ ЛОГИКА: Проверка, является ли это первой активностью в Авто
+                # Проверяем все поля автотестирования. Если все они None - значит это первая сдача.
+                all_auto_fields = AUTO_MODULE_FIELD_MAPPING.values()
+                has_any_progress = any(getattr(progress, f) is not None for f in all_auto_fields)
+                is_first_activity = not has_any_progress
+
                 if field and hasattr(progress, field):
                     current_date = getattr(progress, field)
                     if current_date:
@@ -176,15 +177,14 @@ async def submit_topic_students(update: Update, context: ContextTypes.DEFAULT_TY
                     # 1. Ставим дату
                     setattr(progress, field, datetime.now().date())
 
-                    # 2. 🔥 ВАЖНО: Ставим метку ментора (Вариант 3)
+                    # 2. Ставим метку ментора
                     mentor_field_name = AUTO_MENTOR_FIELDS.get(field)
                     if mentor_field_name and hasattr(progress, mentor_field_name):
                         setattr(progress, mentor_field_name, mentor.id)
 
-                    is_first_module = (selected_label == first_auto_key)
-
-                    # Бонус директору (если нужно)
-                    if student.training_type and student.training_type.strip().lower() == "фуллстек" and is_first_module and student.auto_mentor_id != 3:
+                    # 3. Бонус директору (ID 3)
+                    # Условие: Фуллстек + Это ПЕРВАЯ активность в авто-направлении + Ментор не сам директор
+                    if student.training_type and student.training_type.strip().lower() == "фуллстек" and is_first_activity and student.auto_mentor_id != 3:
                         try:
                             salary_manager.calculate_bonus_dir(
                                 session=session,
@@ -195,7 +195,7 @@ async def submit_topic_students(update: Update, context: ContextTypes.DEFAULT_TY
                         except Exception as e:
                             print(f"Warn: failed to create director auto bonus for {username}: {e}")
 
-                    # Комиссия за тему
+                    # 4. Комиссия за тему
                     if student.start_date >= TARGET_DATE or (
                             student.training_type == 'Фуллстек' and student.start_date >= date(2025, 11, 1)):
                         try:
@@ -233,7 +233,7 @@ async def submit_topic_students(update: Update, context: ContextTypes.DEFAULT_TY
                 not_found.append(username + " (не найден)")
 
         session.commit()
-        # ... (код отправки сообщений о результатах) ...
+
         msg_parts = []
         if found: msg_parts.append(f"✅ Модуль сдан: {', '.join(found)}")
         if already_submitted: msg_parts.append(f"ℹ️ Уже отмечены: {', '.join(already_submitted)}")
@@ -249,7 +249,6 @@ async def submit_topic_students(update: Update, context: ContextTypes.DEFAULT_TY
         now = datetime.now().date()
         found = []
         not_found = []
-        first_manual_key = next(iter(TOPIC_FIELD_MAPPING), None)
         already_submitted = []
 
         for username in usernames:
@@ -261,6 +260,13 @@ async def submit_topic_students(update: Update, context: ContextTypes.DEFAULT_TY
 
                 progress = session.query(ManualProgress).filter_by(student_id=student.id).first()
                 if progress and field_name and hasattr(progress, field_name):
+
+                    # 🔥 НОВАЯ ЛОГИКА: Проверка, является ли это первой активностью в Ручном
+                    # Проверяем все поля ручного прогресса ДО записи текущей даты.
+                    all_manual_fields = TOPIC_FIELD_MAPPING.values()
+                    has_any_progress = any(getattr(progress, f) is not None for f in all_manual_fields)
+                    is_first_activity = not has_any_progress
+
                     current_date = getattr(progress, field_name)
                     if current_date:
                         existing_date = current_date.strftime("%d.%m.%Y") if hasattr(current_date, 'strftime') else str(
@@ -271,15 +277,14 @@ async def submit_topic_students(update: Update, context: ContextTypes.DEFAULT_TY
                     # 1. Ставим дату
                     setattr(progress, field_name, now)
 
-                    # 2. 🔥 ВАЖНО: Ставим метку ментора (Вариант 3)
+                    # 2. Ставим метку ментора
                     mentor_field_name = MANUAL_MENTOR_FIELDS.get(field_name)
                     if mentor_field_name and hasattr(progress, mentor_field_name):
                         setattr(progress, mentor_field_name, mentor.id)
 
-                    is_first_module = (topic == first_manual_key)
-
-                    # Бонус директору
-                    if student.training_type and student.training_type.strip().lower() == "фуллстек" and is_first_module and student.mentor_id != 1:
+                    # 3. Бонус директору (ID 1)
+                    # Условие: Фуллстек + ПЕРВАЯ активность в ручном + Ментор не сам директор
+                    if student.training_type and student.training_type.strip().lower() == "фуллстек" and is_first_activity and student.mentor_id != 1:
                         try:
                             salary_manager.calculate_bonus_dir(
                                 session=session,
@@ -293,7 +298,7 @@ async def submit_topic_students(update: Update, context: ContextTypes.DEFAULT_TY
                     # Обновляем звонок
                     student.last_call_date = now
 
-                    # Комиссия
+                    # 4. Комиссия
                     if student.start_date >= TARGET_DATE or (
                             student.training_type == 'Фуллстек' and student.start_date >= date(2025, 11, 1)):
                         try:
@@ -333,7 +338,7 @@ async def submit_topic_students(update: Update, context: ContextTypes.DEFAULT_TY
                 not_found.append(username + " (не найден)")
 
         session.commit()
-        # ... (код отправки сообщений о результатах) ...
+
         msg_parts = []
         if found: msg_parts.append(f"✅ Дата сдачи темы '{topic}' проставлена: {', '.join(found)}")
         if already_submitted: msg_parts.append(f"ℹ️ Уже сдали тему '{topic}': {', '.join(already_submitted)}")

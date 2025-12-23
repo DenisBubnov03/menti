@@ -134,7 +134,31 @@ async def confirm_payment(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Обновляем платёж
     payment.status = "подтвержден"
+    if payment.comment == "Доплата":
+        manager = SalaryManager()
 
+        # Пытаемся обработать как старую доплату
+        legacy_payouts = manager.handle_legacy_additional_payment(
+            session=session,
+            payment_id=payment.id,
+            student_id=payment.student_id,
+            payment_amount=payment.amount
+        )
+
+        if legacy_payouts:
+            session.commit()
+            print("✅ Начисление старого образца успешно выполнено.")
+        else:
+            # Если не старого образца, то вызываем стандартный обработчик,
+            # который работает через CuratorCommission (по темам/модулям)
+            manager.create_salary_entry_from_payment(
+                session=session,
+                payment_id=payment.id,
+                student_id=payment.student_id,
+                payment_amount=payment.amount
+            )
+            session.commit()
+            print("✅ Начисление стандартного образца успешно выполнено.")
     # 🌟 БЛОК РАСЧЕТА КОМИССИИ (СОГЛАСНО ВАШЕЙ ЛОГИКЕ)
     if payment.comment == "Комиссия":
 
