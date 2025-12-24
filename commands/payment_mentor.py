@@ -169,11 +169,20 @@ async def confirm_payment(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # 3. ОБНОВИТ student.commission_paid (КРИТИЧЕСКИЙ ШАГ)
         try:
             print('start count comission')
+            # 1. Расчет ЗП кураторам (существующая логика)
             salary_manager.create_salary_entry_from_payment(
                 session=session,
                 payment_id=payment_id,
                 student_id=student_id,
                 payment_amount=amount
+            )
+
+            # 2. 🔥 НОВЫЙ ШАГ: Расчет ЗП Карьерному Консультанту
+            # Эта функция создаст запись в salary_kk и проверит лимит 10% от ЗП
+            print('start count kk commission')
+            salary_manager.add_kk_salary_record(
+                session=session,
+                payment_id=payment_id
             )
         except Exception as e:
             print(f"Warn: failed to create commission entry for payment {payment_id}: {e}")

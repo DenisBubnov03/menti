@@ -1,9 +1,10 @@
 # classes/salary_manager.py
+from decimal import Decimal
 
 from sqlalchemy.orm import Session
 from data_base.models import Student, Salary, CuratorCommission, ManualProgress, \
-    AutoProgress  # Добавлены CuratorCommission и прогресс-модели
-from sqlalchemy import inspect
+    AutoProgress, SalaryKK, Payment  # Добавлены CuratorCommission и прогресс-модели
+from sqlalchemy import inspect, func
 import config
 from typing import Dict, Any
 
@@ -611,6 +612,72 @@ class SalaryManager:
             session.add(new_commission)
 
         return bonus_amount, comment
+
+    @staticmethod
+    def add_kk_salary_record(session, payment_id: int):
+        """
+        Начисляет КК 10% от платежа комиссии.
+        Соблюдает потолок: суммарно не более 10% от salary студента.
+        """
+        # 1. Получаем данные платежа
+        payment = session.query(Payment).filter_by(id=payment_id).first()
+        if not payment:
+            return "❌ Платеж не найден"
+
+        student = session.query(Student).filter_by(id=payment.student_id).first()
+        if not student:
+            return "❌ Студент не найден"
+
+        # Используем ваше поле из скриншота
+        kk_id = getattr(student, 'career_consultant_id', None)
+
+        if not kk_id:
+            return "ℹ️ У студента не назначен Карьерный Консультант."
+
+        if not student.salary or float(student.salary) <= 0:
+            return "⚠️ У студента не указана Salary (ЗП). Начисление невозможно."
+
+        # 2. Расчет лимитов
+        salary_dec = Decimal(str(student.salary))
+        payment_dec = Decimal(str(payment.amount))
+
+        # Потолок КК = 10% от ЗП студента
+        total_cap = salary_dec * Decimal('0.10')
+
+        # Считаем сумму всех ПРЕДЫДУЩИХ начислений этому КК по этому студенту
+        already_calculated = session.query(func.sum(SalaryKK.calculated_amount)).filter(
+            SalaryKK.student_id == student.id,
+            SalaryKK.kk_id == kk_id
+        ).scalar() or Decimal('0')
+
+        if already_calculated >= total_cap:
+            return f"🛑 Лимит выплат КК ({total_cap}) по данному студенту уже достигнут."
+
+        # 3. Расчет текущего начисления (10% от текущей оплаты)
+        amount_to_add = payment_dec * Decimal('0.10')
+
+        # Если текущее начисление превышает остаток лимита — обрезаем
+        if already_calculated + amount_to_add > total_cap:
+            amount_to_add = total_cap - already_calculated
+
+        new_remaining = total_cap - (already_calculated + amount_to_add)
+
+        # 4. Сохранение записи
+        new_kk_salary = SalaryKK(
+            payment_id=payment.id,
+            kk_id=kk_id,
+            student_id=student.id,
+            calculated_amount=amount_to_add,
+            total_potential=total_cap,
+            remaining_limit=new_remaining,
+            is_paid=False,
+            comment=f"10% от платежа комиссии (ID платежа: {payment_id})"
+        )
+
+        session.add(new_kk_salary)
+        return f"✅ КК начислено: {amount_to_add}. Остаток лимита: {new_remaining}"
+
+
     def _calculate_commission_curator_fullstack(self, session: Session, mentor_id: int, telegram: str, ):
         pass
 
