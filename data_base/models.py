@@ -1,7 +1,7 @@
 from datetime import datetime
 
 from sqlalchemy import Column, Integer, String, Date, DECIMAL, ForeignKey, DateTime, Boolean, Text, Numeric, \
-    UniqueConstraint, TIMESTAMP
+    UniqueConstraint, TIMESTAMP, func
 from sqlalchemy.orm import relationship
 
 from data_base import Base
@@ -30,6 +30,8 @@ class Student(Base):
     mentor_id = Column(Integer, ForeignKey("mentors.id"), nullable=False)
     auto_mentor_id = Column(Integer, ForeignKey("mentors.id"), nullable=True)
     rules_accepted = Column(Boolean, default=False, server_default="false")
+    career_consultant_id = Column(Integer, ForeignKey("career_consultants.id"), nullable=True)
+    career_consultant = relationship("CareerConsultant", back_populates="students")
 
 class Mentor(Base):
     __tablename__ = "mentors"
@@ -109,6 +111,14 @@ class ManualProgress(Base):
     m4_5_homework = Column(Boolean)
     m4_mock_exam_passed_date = Column(Date)
     m5_start_date = Column(Date)
+    m1_mentor_id = Column(Integer, nullable=True)
+    m2_1_2_2_mentor_id = Column(Integer, nullable=True)
+    m2_3_3_1_mentor_id = Column(Integer, nullable=True)
+    m3_2_mentor_id = Column(Integer, nullable=True)
+    m3_3_mentor_id = Column(Integer, nullable=True)
+    m4_1_mentor_id = Column(Integer, nullable=True)
+    m4_2_4_3_mentor_id = Column(Integer, nullable=True)
+    m4_mock_exam_mentor_id = Column(Integer, nullable=True)
 
     def __repr__(self):
         return f"<Payment(id={self.id}, student_id={self.student_id}, mentor_id={self.mentor_id}, amount={self.amount}, date={self.payment_date})>"
@@ -139,6 +149,12 @@ class AutoProgress(Base):
     m5_topic_passed_date = Column(Date)
     m6_topic_passed_date = Column(Date)
     m7_topic_passed_date = Column(Date)
+    m2_exam_mentor_id = Column(Integer, nullable=True)
+    m3_exam_mentor_id = Column(Integer, nullable=True)
+    m4_topic_mentor_id = Column(Integer, nullable=True)
+    m5_topic_mentor_id = Column(Integer, nullable=True)
+    m6_topic_mentor_id = Column(Integer, nullable=True)
+    m7_topic_mentor_id = Column(Integer, nullable=True)
 
 
 class AIHomeworkCheck(Base):
@@ -180,6 +196,7 @@ class Salary(Base):
     is_paid = Column(Boolean, default=False, nullable=False)
     comment = Column(Text, nullable=True)
     mentor_id = Column(Integer, nullable=False)
+    date_calculated = Column(DateTime, default=datetime.now)  # Или Date
 
     def __repr__(self):
         # Используем self.salary_id для соответствия имени колонки
@@ -194,8 +211,10 @@ class Payout(Base):
     __tablename__ = 'payouts'
 
     payout_id = Column(Integer, primary_key=True)
-    mentor_id = Column(Integer, nullable=False)
+    mentor_id = Column(Integer, ForeignKey("mentors.id"), nullable=True)
 
+    # 🔥 НОВОЕ ПОЛЕ: Ссылка на карьерного консультанта
+    kk_id = Column(Integer, ForeignKey("career_consultants.id"), nullable=True)
     period_start = Column(Date, nullable=False)
     period_end = Column(Date, nullable=False)
 
@@ -210,3 +229,86 @@ class Payout(Base):
     def __repr__(self):
         return (f"<Payout(id={self.payout_id}, mentor={self.mentor_id}, "
                 f"amount={self.total_amount}, status={self.payout_status})>")
+
+class CuratorCommission(Base):
+    """
+        Таблица учета 'Потолка' (Общего обязательства) перед ментором/директором.
+        Создается при трудоустройстве.
+        """
+    __tablename__ = "curator_commissions"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+
+    # Ссылка на студента (Обязательно)
+    student_id = Column(Integer, ForeignKey("students.id"), nullable=False)
+
+    # Ментор или Директор, которому мы должны
+    curator_id = Column(Integer, ForeignKey("mentors.id"), nullable=False)
+
+    # Ссылка на платеж (Опционально, обычно NULL при создании долга)
+    payment_id = Column(Integer, ForeignKey("payments.id"), nullable=True)
+
+    # Общая сумма, которую мы обещаем выплатить (Потолок)
+    total_amount = Column(Numeric(10, 2), nullable=False, default=0)
+
+    # Сколько уже выплатили по факту
+    paid_amount = Column(Numeric(10, 2), nullable=False, default=0)
+
+    updated_at = Column(
+        TIMESTAMP,
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+    # Уникальность ПАРЫ: Один студент не может иметь два долга перед ОДНИМ и тем же ментором.
+    # Но может иметь долги перед разными менторами.
+    __table_args__ = (
+        UniqueConstraint('student_id', 'curator_id', name='uq_student_curator_debt'),
+    )
+
+    # Связи
+    student = relationship("Student", backref="commissions_debt")
+    curator = relationship("Mentor")
+
+class CareerConsultant(Base):
+    __tablename__ = "career_consultants"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    telegram = Column(String(50), unique=True, nullable=False)
+    full_name = Column(String(255), nullable=False)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(Date, nullable=True)
+    students = relationship("Student", back_populates="career_consultant")
+
+    # Отношения
+    # students = relationship("Student", back_populates="career_consultant")
+
+
+class SalaryKK(Base):
+    """
+    Таблица начислений для Карьерных Консультантов (КК).
+    """
+    __tablename__ = 'salary_kk'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    payment_id = Column(Integer, ForeignKey('payments.id'), nullable=False)
+    kk_id = Column(Integer, ForeignKey('career_consultants.id'), nullable=False)
+    student_id = Column(Integer, ForeignKey('students.id'), nullable=False)
+
+    # 10% от текущего платежа
+    calculated_amount = Column(Numeric(10, 2), nullable=False)
+
+    # Сколько ВСЕГО КК должен получить (10% от ЗП студента)
+    total_potential = Column(Numeric(10, 2), nullable=False)
+
+    # Сколько ОСТАЛОСЬ получить после этого начисления
+    remaining_limit = Column(Numeric(10, 2), nullable=False)
+
+    is_paid = Column(Boolean, default=False, nullable=False)
+    date_calculated = Column(DateTime, default=datetime.utcnow)
+    comment = Column(Text, nullable=True)
+
+    # Отношения
+    student = relationship("Student")
+    kk = relationship("CareerConsultant")
+    payment = relationship("Payment")

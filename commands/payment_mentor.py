@@ -1,4 +1,6 @@
 import re
+from datetime import date
+
 from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import ConversationHandler, ContextTypes
 
@@ -7,7 +9,7 @@ from commands.states import PAYMENT_CONFIRMATION
 from data_base.db import session
 from data_base.models import Student, Mentor, Payment
 from data_base.operations import update_student_payment, get_student_by_fio_or_telegram
-
+from classes.salary_manager import SalaryManager # <--- Убедитесь, что этот импорт есть
 
 
 async def show_pending_payments(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -113,49 +115,109 @@ async def check_payment_by_id(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 
 async def confirm_payment(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    salary_manager = SalaryManager()
+
     # Проверяем кнопку отмены
     if update.message.text and update.message.text.strip().lower() in ["отменить", "🔙 отменить"]:
         await update.message.reply_text("❌ Подтверждение платежа отменено.")
         return await back_to_main_menu(update, context)
-    
+
     payment_id = context.user_data.get("payment_id")
     student_id = context.user_data.get("student_id")
-    amount = context.user_data.get("amount")
+    amount = float(context.user_data.get("amount") or 0)
 
     payment = session.query(Payment).get(payment_id)
     student = session.query(Student).get(student_id)
 
     if not payment or not student:
-        await update.message.reply_text("❌ Ошибка при подтверждении.")
+        await update.message.reply_text("❌ Ошибка: платеж или студент не найдены.")
         return ConversationHandler.END
 
-    # Обновляем платёж
+    # ПРОВЕРКА: Если платеж уже был подтвержден ранее, не обрабатываем второй раз
+    if payment.status == "подтвержден":
+        await update.message.reply_text("⚠️ Этот платёж уже был подтвержден ранее.")
+        return await back_to_main_menu(update, context)
+
+    # ========================================================
+    # 1. ГЛАВНОЕ: МЕНЯЕМ СТАТУС В БАЗЕ
+    # ========================================================
     payment.status = "подтвержден"
-    if payment.comment == "Комиссия":
-        student.commission_paid = (student.commission_paid or 0) + amount
+    session.add(payment)  # Фиксируем изменение статуса
+
+    # Определяем "старый" ли студент
+    CUTOFF_DATE = date(2025, 12, 1)
+    is_legacy = (
+            student.start_date and
+            student.start_date < CUTOFF_DATE and
+            (student.training_type or "").strip().lower() != "фуллстек"
+    )
+
+    # ========================================================
+    # 2. РАСПРЕДЕЛЕНИЕ ЛОГИКИ ПО ТИПУ ПЛАТЕЖА
+    # ========================================================
+
+    # Если это платеж, за который полагается ЗП кураторам (Комиссия или Доплата)
+    if payment.comment in ["Комиссия", "Доплата"]:
+        if is_legacy:
+            print(f"🚀 Обработка Legacy-платежа ({payment.comment}) для {student.telegram}")
+            salary_manager.handle_legacy_payment_universal(
+                session=session,
+                payment_id=payment.id,
+                student_id=payment.student_id,
+                payment_amount=payment.amount,
+                payment_type=payment.comment
+            )
+        else:
+            print(f"🚀 Обработка стандартного платежа через долги для {student.telegram}")
+            salary_manager.create_salary_entry_from_payment(
+                session=session,
+                payment_id=payment.id,
+                student_id=payment.student_id,
+                payment_amount=payment.amount
+            )
+
+        # Бонус для КК (только если комментарий именно "Комиссия")
+        if payment.comment == "Комиссия":
+            try:
+                print('start count kk commission')
+                salary_manager.add_kk_salary_record(session=session, payment_id=payment.id)
+            except Exception as e:
+                print(f"Warn: failed to create KK commission: {e}")
+
     else:
+        # Если это обычная оплата обучения (не комиссия)
+        print(f"💰 Обработка основной оплаты обучения для {student.telegram}")
         student.payment_amount = (student.payment_amount or 0) + amount
+
+        # Проверка полной оплаты курса
         if student.payment_amount >= (student.total_cost or 0):
             student.fully_paid = "Да"
+        session.add(student)
 
-    # student.payment_amount = (student.payment_amount or 0) + amount
-
-    # ✅ Если студент оплатил всё — проставляем fully_paid = "Да"
-    if student.payment_amount >= (student.total_cost or 0):
-        student.fully_paid = "Да"
-
-    session.commit()
+    # ========================================================
+    # 3. СОХРАНЕНИЕ И УВЕДОМЛЕНИЕ
+    # ========================================================
+    try:
+        session.commit()
+        print(f"✅ Успешно подтверждено: Платёж {payment_id}, Студент {student.telegram}")
+    except Exception as e:
+        session.rollback()
+        print(f"❌ Ошибка при сохранении в БД: {e}")
+        await update.message.reply_text("❌ Произошла ошибка при сохранении данных.")
+        return ConversationHandler.END
 
     # Уведомление студенту
     if student.chat_id:
-        await context.bot.send_message(
-            chat_id=student.chat_id,
-            text=f"✅ Ваш платёж {amount:.2f} руб. подтверждён!"
-        )
+        try:
+            await context.bot.send_message(
+                chat_id=student.chat_id,
+                text=f"✅ Ваш платёж {amount:.2f} руб. подтверждён!"
+            )
+        except Exception as e:
+            print(f"Warn: не удалось отправить сообщение студенту: {e}")
 
-    await update.message.reply_text("✅ Платёж подтверждён и добавлен к сумме оплаты.")
+    await update.message.reply_text(f"✅ Платёж {amount} руб. ({payment.comment}) подтверждён.")
     return await back_to_main_menu(update, context)
-
 
 async def reject_payment(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Проверяем кнопку отмены
