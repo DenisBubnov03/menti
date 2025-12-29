@@ -425,88 +425,100 @@ class SalaryManager:
                     debt_record.paid_amount = float(debt_record.paid_amount) + final_amount
                     session.add(debt_record)
 
-                    student.commission_paid = float(student.commission_paid or 0) + final_amount
-                    session.add(student)
+            student.commission_paid = float(student.commission_paid or 0) + payment_amount
+            session.add(student)
 
-    def handle_legacy_additional_payment(self, session: Session, payment_id: int, student_id: int,
-                                         payment_amount: float):
+    def handle_legacy_payment_universal(self, session: Session, payment_id: int, student_id: int,
+                                        payment_amount: float, payment_type: str = "Доплата"):
         """
-        Обрабатывает платеж "Доплата" для студентов, начавших обучение до 01.12.2025 (не Fullstack).
-        Начисляет 20% куратору и 10% директору от суммы платежа (без учета долга CuratorCommission).
+        Универсальная обработка платежей (Доплата/Комиссия) для студентов до 01.12.2025.
+        Логика:
+        - Если Директор сам ведет ученика: 30% Директору.
+        - Если ведут разные люди: 20% Куратору, 10% Директору.
         """
         from data_base.models import Student, Salary
         from datetime import date
 
-        # Дата, до которой действует старая логика
         CUTOFF_DATE = date(2025, 12, 1)
-
         student = session.query(Student).filter_by(id=student_id).first()
         payment_amount = float(payment_amount)
 
         if not student or payment_amount <= 0:
             return None
 
+        # Проверка на legacy и не-фуллстек
         training_type_lower = student.training_type.strip().lower() if student.training_type else ""
-
-        # 1. Проверка условий: до 01.12.2025 и не Fullstack
         is_legacy = student.start_date and student.start_date < CUTOFF_DATE
         is_not_fullstack = training_type_lower != "фуллстек"
 
         if not (is_legacy and is_not_fullstack):
-            return None  # Условия не выполнены, пропускаем
+            return None
 
-        # 2. Определяем IDs и направление (DIRECTOR_ID_MANUAL = 1, DIRECTOR_ID_AUTO = 3)
+        # 1. Определяем Директора и Куратора
         if training_type_lower == "ручное тестирование":
             curator_id = student.mentor_id
-            director_id = DIRECTOR_ID_MANUAL  # ID 1
+            director_id = DIRECTOR_ID_MANUAL
             direction = "ручного направления"
         elif training_type_lower == "автотестирование":
             curator_id = student.auto_mentor_id
-            director_id = DIRECTOR_ID_AUTO  # ID 3
+            director_id = DIRECTOR_ID_AUTO
             direction = "авто направления"
         else:
-            # Не должен сюда попасть из-за проверки is_not_fullstack
             return None
 
-        if not curator_id:
-            print(
-                f"Warn: Student {student.telegram} ({student_id}) has no curator for {direction}. Skipping legacy payment handling.")
-            return None
+        # 2. Проверяем, является ли Директор куратором
+        is_director_is_mentor = (curator_id == director_id)
 
-        # 3. Расчет и начисление Куратору (20%)
-        curator_percent = 0.20
-        curator_payout = round(payment_amount * curator_percent, 2)
+        results = []
 
-        curator_salary = Salary(
-            payment_id=payment_id,
-            mentor_id=curator_id,
-            calculated_amount=curator_payout,
-            comment=f"Доплата от студента {student.fio} ({student.telegram}) - {int(curator_percent * 100)}% ({direction})",
-            is_paid=False
-        )
-        session.add(curator_salary)
+        if is_director_is_mentor:
+            # Случай: 30% в одни руки
+            percent = 0.30
+            amount = round(payment_amount * percent, 2)
 
-        # 4. Расчет и начисление Директору (10%)
-        director_percent = 0.10
-        director_payout = round(payment_amount * director_percent, 2)
+            salary_entry = Salary(
+                payment_id=payment_id,
+                mentor_id=director_id,
+                calculated_amount=amount,
+                comment=f"{payment_type} (Legacy): 30% Директору-куратору ({direction})",
+                is_paid=False
+            )
+            session.add(salary_entry)
+            results.append(salary_entry)
+        else:
+            # Случай: 20% куратору и 10% директору
+            cur_amount = round(payment_amount * 0.20, 2)
+            dir_amount = round(payment_amount * 0.10, 2)
 
-        director_salary = Salary(
-            payment_id=payment_id,
-            mentor_id=director_id,
-            calculated_amount=director_payout,
-            comment=f"Бонус Директора ({int(director_percent * 100)}%) за Доплату от студента {student.fio} ({student.telegram}) - {direction}",
-            is_paid=False
-        )
-        session.add(director_salary)
+            if curator_id:
+                cur_salary = Salary(
+                    payment_id=payment_id,
+                    mentor_id=curator_id,
+                    calculated_amount=cur_amount,
+                    comment=f"{payment_type} (Legacy): 20% Куратору ({direction})",
+                    is_paid=False
+                )
+                session.add(cur_salary)
+                results.append(cur_salary)
 
-        print(
-            f"Info: Processed legacy additional payment for student {student_id}. Curator {curator_payout}₽, Director {director_payout}₽.")
+            dir_salary = Salary(
+                payment_id=payment_id,
+                mentor_id=director_id,
+                calculated_amount=dir_amount,
+                comment=f"{payment_type} (Legacy): 10% Директору ({direction})",
+                is_paid=False
+            )
+            session.add(dir_salary)
+            results.append(dir_salary)
 
-        # Обновляем commission_paid студента
-        student.commission_paid = float(student.commission_paid or 0) + curator_payout + director_payout
+        # 3. Обновляем общую сумму выплаченного
+        total_payout = sum(r.calculated_amount for r in results)
+        student.commission_paid = float(student.commission_paid or 0) + payment_amount
         session.add(student)
 
-        return [curator_salary, director_salary]
+        print(f"Info: Processed {payment_type} for legacy student {student_id}. Total payout: {total_payout}₽")
+        return results
+
 
     def create_commission_for_manual_task(self, session: Session, mentor_id: int, telegram: str, topic_name: str,
                                           student_id: int):

@@ -197,7 +197,7 @@ async def submit_topic_students(update: Update, context: ContextTypes.DEFAULT_TY
 
                     # 4. Комиссия за тему
                     if student.start_date >= TARGET_DATE or (
-                            student.training_type == 'Фуллстек' and student.start_date >= date(2025, 11, 1)):
+                            student.training_type == 'Фуллстек' and student.start_date >= date(2025, 9, 1)):
                         try:
                             salary_manager.create_commission_for_auto_task(
                                 session=session,
@@ -300,7 +300,7 @@ async def submit_topic_students(update: Update, context: ContextTypes.DEFAULT_TY
 
                     # 4. Комиссия
                     if student.start_date >= TARGET_DATE or (
-                            student.training_type == 'Фуллстек' and student.start_date >= date(2025, 11, 1)):
+                            student.training_type == 'Фуллстек' and student.start_date >= date(2025, 9, 1)):
                         try:
                             salary_manager.create_commission_for_manual_task(
                                 session=session,
