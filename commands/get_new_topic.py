@@ -129,6 +129,7 @@ MANUAL_MODULE_4_LINKS = {
     "Мок экзамен": "https://thankful-candy-c57.notion.site/4-5-20c94f774aab80c48be5f0f09eb71152?source=copy_link",
 }
 
+
 async def handle_manual_direction(update: Update, context, student: Student):
     progress = session.query(ManualProgress).filter_by(student_id=student.id).first()
     if not progress:
@@ -148,12 +149,19 @@ async def handle_manual_direction(update: Update, context, student: Student):
         if not progress.m1_start_date:
             progress.m1_start_date = datetime.now().date()
             session.commit()
-            await update.message.reply_text(f"Вам открыт 1 модуль ручного тестирования! https://thankful-candy-c57.notion.site/1-20594f774aab81db8392f01309905510?source=copy_link\n"
-                                            f"А так же модуль по AI https://cyber-liver-416.notion.site/AI-2b53f89d012f80da9620e622079962cd")
+            await update.message.reply_text(
+                f"Вам открыт 1 модуль ручного тестирования! https://thankful-candy-c57.notion.site/1-20594f774aab81db8392f01309905510?source=copy_link\n"
+                f"А так же модуль по AI https://cyber-liver-416.notion.site/AI-2b53f89d012f80da9620e622079962cd")
             return await back_to_main_menu(update, context)
-        # else: ничего не делаем, сразу идём дальше
+
     # --- Новая логика для 2 модуля ---
     if next_module == 2:
+        # ПЕРЕНЕСЕНО СЮДА: Проверка договора перед получением 2 модуля
+        if not getattr(student, 'contract_signed', False):
+            await update.message.reply_text(
+                "Чтобы получить 2 модуль, подпишите договор! Для получения договора обратитесь к @sinlaughter")
+            return await back_to_main_menu(update, context)
+
         theme_to_field = {
             "Тема 2.1": "m2_1_start_date",
             "Тема 2.2": "m2_2_start_date",
@@ -181,7 +189,6 @@ async def handle_manual_direction(update: Update, context, student: Student):
                     await update.message.reply_text(f"Ваша новая тема: {topic}\nСсылка: {link}")
                     return await back_to_main_menu(update, context)
         else:
-            # Если все темы 2 модуля уже начаты, проверяем готовность к 3 модулю
             if not progress.m1_homework:
                 await update.message.reply_text("Чтобы получить темы 3 модуля, сдайте домашку по 1 модулю!")
                 return await back_to_main_menu(update, context)
@@ -189,12 +196,13 @@ async def handle_manual_direction(update: Update, context, student: Student):
                 await update.message.reply_text("Чтобы получить темы 3 модуля, сдайте домашки по 2 модулю!")
                 return await back_to_main_menu(update, context)
             else:
-                await update.message.reply_text("Все темы 2 модуля уже выданы. Сдайте темы ментору для получения тем 3 модуля.")
+                await update.message.reply_text(
+                    "Все темы 2 модуля уже выданы. Сдайте темы ментору для получения тем 3 модуля.")
                 return await back_to_main_menu(update, context)
-        return await back_to_main_menu(update, context)
     # Для 3+ модулей проверяем сдачу предыдущего модуля
     if next_module > 2 and not all_manual_module_submitted(progress, next_module - 1):
-        await update.message.reply_text(f"Чтобы получить новую тему, сдайте все темы и домашки по {next_module-1} модулю!")
+        await update.message.reply_text(
+            f"Чтобы получить новую тему, сдайте все темы и домашки по {next_module - 1} модулю!")
         return await back_to_main_menu(update, context)
 
     # --- Новая логика для 3 модуля ---
@@ -215,12 +223,9 @@ async def handle_manual_direction(update: Update, context, student: Student):
         else:
             await update.message.reply_text("Чтобы получить новую тему, сдайте все темы и домашки по 3 модулю!")
             return await back_to_main_menu(update, context)
-    # --- Конец новой логики ---
     # --- Новая логика для 4 модуля ---
     if next_module == 4:
-        # Проверка оплаты и договора
         if student.training_type.strip().lower() == "фуллстек":
-            # Для фуллстек-студентов проверяем 50% оплаты
             if student.total_cost and student.payment_amount:
                 payment_percentage = (float(student.payment_amount) / float(student.total_cost)) * 100
                 if payment_percentage < 50:
@@ -230,20 +235,18 @@ async def handle_manual_direction(update: Update, context, student: Student):
                     )
                     return await back_to_main_menu(update, context)
             else:
-                await update.message.reply_text("Чтобы получить 4 модуль по ручному тестированию, оплатите минимум 50% от общей стоимости обучения!")
+                await update.message.reply_text(
+                    "Чтобы получить 4 модуль по ручному тестированию, оплатите минимум 50% от общей стоимости обучения!")
                 return await back_to_main_menu(update, context)
         else:
-            # Для обычных студентов проверяем полную оплату
             if student.fully_paid != "Да":
                 await update.message.reply_text("Чтобы получить 4 модуль, оплатите всю сумму за обучение!")
                 return await back_to_main_menu(update, context)
-        
-        if not getattr(student, 'contract_signed', False):
-            await update.message.reply_text("Чтобы получить 4 модуль, подпишите договор! Для получения договора обратитесь к @sinlaughter")
-            return await back_to_main_menu(update, context)
+
         if not all_manual_module_submitted(progress, 3):
             await update.message.reply_text("Чтобы получить 4 модуль, сдайте все темы и домашки по 3 модулю!")
             return await back_to_main_menu(update, context)
+
         theme_to_field = {
             "Тема 4.1": "m4_1_start_date",
             "Тема 4.2": "m4_2_start_date",
@@ -256,9 +259,7 @@ async def handle_manual_direction(update: Update, context, student: Student):
                 session.commit()
                 link = MANUAL_MODULE_4_LINKS[topic]
                 await update.message.reply_text(f"Ваша новая тема: {topic}\nСсылка: {link}")
-                # Если это 4.3 — сразу выдаём только доп. темы
                 if topic == "Тема 4.3":
-                    # Автоматически устанавливаем даты старта для дополнительных тем
                     progress.m4_4_start_date = datetime.now().date()
                     progress.m4_5_start_date = datetime.now().date()
                     progress.m4_mock_exam_start_date = datetime.now().date()
@@ -269,38 +270,14 @@ async def handle_manual_direction(update: Update, context, student: Student):
                         f"4.5: {MANUAL_MODULE_4_LINKS['Тема 4.5']}\n"
                     )
                 return await back_to_main_menu(update, context)
-        # Если дошли до сюда — значит 4.3 уже начата, выдаём все доп. темы сразу
-        # Автоматически устанавливаем даты старта для дополнительных тем, если их нет
-        # if not progress.m4_4_start_date:
-        #     progress.m4_4_start_date = datetime.now().date()
-        # if not progress.m4_5_start_date:
-        #     progress.m4_5_start_date = datetime.now().date()
-        # if not progress.m4_mock_exam_start_date:
-        #     progress.m4_mock_exam_start_date = datetime.now().date()
-        # session.commit()
-        #
-        # await update.message.reply_text(
-        #     "Вы прошли основные темы 4 модуля! Вот дополнительные темы и экзамен:\n"
-        #     f"4.4: {MANUAL_MODULE_4_LINKS['Тема 4.4']}\n"
-        #     f"4.5: {MANUAL_MODULE_4_LINKS['Тема 4.5']}\n"
-        #     f"Мок экзамен: {MANUAL_MODULE_4_LINKS['Мок экзамен']}"
-        # )
-        # Если у студента есть даты старта по всем темам 4 модуля, выдаём ссылку на 5 модуль
-        # if all(getattr(progress, field, None) for field in ["m4_1_start_date", "m4_2_start_date", "m4_3_start_date"]):
-        #     await update.message.reply_text(
-        #         "Поздравляем! Вы завершили 4 модуль. Вот ссылка на 5 модуль:\n"
-        #         "https://thankful-candy-c57.notion.site/5-20594f774aab81518d87db6edddd068e?source=copy_link"
-        #     )
-        # return await back_to_main_menu(update, context)
-        
-        # Если все темы 4 модуля уже выданы, но не сдана домашка 4.5
+
         if not progress.m4_5_homework:
             await update.message.reply_text("Чтобы получить 5 модуль, отправьте домашку по теме 4.5!")
             return await back_to_main_menu(update, context)
         else:
-            await update.message.reply_text("Все темы 4 модуля уже выданы. Сдайте домашку по теме 4.5 для получения 5 модуля.")
+            await update.message.reply_text(
+                "Все темы 4 модуля уже выданы. Сдайте домашку по теме 4.5 для получения 5 модуля.")
             return await back_to_main_menu(update, context)
-    # --- Конец новой логики ---
     # --- Новая логика для 5 модуля ---
     if next_module == 5:
         progress = session.query(ManualProgress).filter_by(student_id=student.id).first()
