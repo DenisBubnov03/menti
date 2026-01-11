@@ -9,8 +9,18 @@ from telegram.error import TimedOut, NetworkError, RetryAfter
 
 from commands.call_notifications import run_scheduler, show_mentor_calls
 from commands.call_scheduling import request_call, schedule_call_date, schedule_call_time, handle_direction_choice
-from commands.admin_functions import request_broadcast_message, send_broadcast, add_mentor_request, save_mentor_name, \
-    save_mentor_tg, remove_mentor_request, remove_mentor, WAITING_MENTOR_TG_REMOVE, save_mentor_direction
+from commands.admin_functions import (
+    request_broadcast_message,
+    select_broadcast_audience,
+    send_broadcast,
+    add_mentor_request,
+    save_mentor_name,
+    save_mentor_tg,
+    remove_mentor_request,
+    remove_mentor,
+    WAITING_MENTOR_TG_REMOVE,
+    save_mentor_direction,
+)
 from commands.new.handlers import start_topic_submission, select_topic, submit_topic_students
 from commands.start_command import start_command, my_topics_and_links
 from commands.homework_menti import *
@@ -132,6 +142,7 @@ def main():
     broadcast_handler = ConversationHandler(
         entry_points=[MessageHandler(filters.Regex("^📢 Сделать рассылку$"), request_broadcast_message)],
         states={
+            BROADCAST_AUDIENCE: [MessageHandler(filters.TEXT & ~filters.COMMAND, select_broadcast_audience)],
             BROADCAST_WAITING: [MessageHandler(filters.TEXT & ~filters.COMMAND, send_broadcast)]
         },
         fallbacks=[]

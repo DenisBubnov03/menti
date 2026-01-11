@@ -1,7 +1,16 @@
-from telegram import Update, ReplyKeyboardMarkup
+from typing import Optional
+
+from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
 
 from commands.base_function import back_to_main_menu
-from commands.states import WAITING_MENTOR_NAME, WAITING_MENTOR_TG_NEW, WAITING_MENTOR_DIRECTION, BROADCAST_WAITING, WAITING_MENTOR_TG_REMOVE
+from commands.states import (
+    WAITING_MENTOR_NAME,
+    WAITING_MENTOR_TG_NEW,
+    WAITING_MENTOR_DIRECTION,
+    BROADCAST_WAITING,
+    BROADCAST_AUDIENCE,
+    WAITING_MENTOR_TG_REMOVE,
+)
 from data_base.db import session
 from data_base.models import Mentor
 from data_base.operations import get_all_students  # Импортируем функцию для получения всех студентов
@@ -71,9 +80,40 @@ async def save_mentor_direction(update: Update, context: ContextTypes.DEFAULT_TY
     return await back_to_main_menu(update, context)
 
 
-async def request_broadcast_message(update, context):
-    """Запрашивает у админа текст рассылки"""
-    await update.message.reply_text("📢 Введите текст рассылки для всех студентов:")
+def _normalize_training_type(value: Optional[str]) -> str:
+    return (value or "").strip().casefold()
+
+
+async def request_broadcast_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Запрашивает у админа аудиторию рассылки."""
+    context.user_data.pop("broadcast_target", None)
+    keyboard = ReplyKeyboardMarkup(
+        keyboard=[[KeyboardButton("Ручникам"), KeyboardButton("Автоматизаторам"), KeyboardButton("Новость")]],
+        resize_keyboard=True,
+        one_time_keyboard=True,
+    )
+    await update.message.reply_text("📢 Кому отправить рассылку?", reply_markup=keyboard)
+    return BROADCAST_AUDIENCE
+
+
+async def select_broadcast_audience(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Сохраняет выбранную аудиторию и запрашивает текст рассылки."""
+    choice = (update.message.text or "").strip()
+
+    if choice == "Ручникам":
+        context.user_data["broadcast_target"] = "manual"
+        prompt = "📢 Введите текст рассылки для студентов (Ручное тестирование):"
+    elif choice == "Автоматизаторам":
+        context.user_data["broadcast_target"] = "auto"
+        prompt = "📢 Введите текст рассылки для студентов (Автотестирование):"
+    elif choice == "Новость":
+        context.user_data["broadcast_target"] = "all"
+        prompt = "📢 Введите текст рассылки для всех студентов:"
+    else:
+        await update.message.reply_text("⚠ Выберите: Ручникам / Автоматизаторам / Новость.")
+        return BROADCAST_AUDIENCE
+
+    await update.message.reply_text(prompt)
     return BROADCAST_WAITING
 
 async def send_broadcast(update, context):
@@ -83,10 +123,27 @@ async def send_broadcast(update, context):
         await update.message.reply_text("⚠ Ошибка! Сообщение не может быть пустым.")
         return BROADCAST_WAITING
 
+    target = context.user_data.get("broadcast_target", "all")
     students = get_all_students()  # Получаем список всех студентов
+
+    if target == "manual":
+        students = [
+            student
+            for student in students
+            if _normalize_training_type(getattr(student, "training_type", None))
+            == _normalize_training_type("Ручное тестирование")
+        ]
+    elif target == "auto":
+        students = [
+            student
+            for student in students
+            if _normalize_training_type(getattr(student, "training_type", None))
+            == _normalize_training_type("Автотестирование")
+        ]
 
     sent_count = 0
     failed_count = 0
+    skipped_count = 0
 
     for student in students:
         if student.chat_id:  # Проверяем, есть ли у студента chat_id
@@ -96,8 +153,14 @@ async def send_broadcast(update, context):
             except Exception as e:
                 print(f"❌ Ошибка отправки студенту {student.telegram}: {e}")
                 failed_count += 1
+        else:
+            skipped_count += 1
 
-    await update.message.reply_text(f"✅ Сообщение отправлено {sent_count} студентам. Не доставлено: {failed_count}.")
+    context.user_data.pop("broadcast_target", None)
+
+    await update.message.reply_text(
+        f"✅ Сообщение отправлено {sent_count} студентам. Не доставлено: {failed_count}. Без chat_id: {skipped_count}."
+    )
     return ConversationHandler.END
 
 
