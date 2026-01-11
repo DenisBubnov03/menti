@@ -242,7 +242,9 @@ async def handle_manual_direction(update: Update, context, student: Student):
             if student.fully_paid != "Да":
                 await update.message.reply_text("Чтобы получить 4 модуль, оплатите всю сумму за обучение!")
                 return await back_to_main_menu(update, context)
-
+        if not getattr(student, 'contract_signed', False):
+            await update.message.reply_text("Чтобы получить 4 модуль, подпишите договор! Для получения договора обратитесь к @sinlaughter")
+            return await back_to_main_menu(update, context)
         if not all_manual_module_submitted(progress, 3):
             await update.message.reply_text("Чтобы получить 4 модуль, сдайте все темы и домашки по 3 модулю!")
             return await back_to_main_menu(update, context)
