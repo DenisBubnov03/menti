@@ -177,6 +177,10 @@ async def get_student_progress_info(student):
     report.append(f"📊 *Принято всего:* {accepted} ДЗ")
     is_paid = "✅" if student.fully_paid == "Да" else "⏳"
     report.append(f"💳 *Оплата:* {student.payment_amount or 0} / {student.total_cost or 0} ₽ {is_paid}")
+    report.append(f"📅 *Дата трудоустройства:* {student.employment_date}")
+    report.append(f"💵 *Зарплата:* {student.salary}")
+    report.append(f"💸 *Выплачено комиссии:* {student.commission_paid}")
+
 
     if student.last_call_date:
         report.append(f"📞 *Последний звонок:* {safe_date_format(student.last_call_date)}")
