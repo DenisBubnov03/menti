@@ -270,6 +270,8 @@ async def handle_manual_direction(update: Update, context, student: Student):
                         "Вы прошли основные темы 4 модуля! Вот дополнительные темы и экзамен:\n"
                         f"4.4: {MANUAL_MODULE_4_LINKS['Тема 4.4']}\n"
                         f"4.5: {MANUAL_MODULE_4_LINKS['Тема 4.5']}\n"
+                        f"А так же, вам открыта тема по GRPC для самообучения\n"
+                        f"https://thankful-candy-c57.notion.site/GRPC-2e994f774aab807bba38fc9f4bcae599?source=copy_link\n"
                     )
                 return await back_to_main_menu(update, context)
 
@@ -399,3 +401,65 @@ async def handle_auto_direction(update, context, student):
     if progress.m8_start_date:
         await update.message.reply_text("Вы прошли все модули автотестирования!")
         return await back_to_main_menu(update, context)
+
+
+@log_request("my_topics_and_links")
+async def my_topics_and_links(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    student_telegram = f"@{update.message.from_user.username}"
+    student = session.query(Student).filter_by(telegram=student_telegram).first()
+    if not student:
+        await update.message.reply_text("❌ Вы не зарегистрированы как студент!")
+        return
+    msg = []
+    msg.append(f" Доп модуль:\n"
+                           f"AI: https://cyber-liver-416.notion.site/AI-2b53f89d012f80da9620e622079962cd\n")
+    # Ручное тестирование
+    if student.training_type.lower().startswith("ручн") or student.training_type.lower().startswith("фулл"):
+        progress = session.query(ManualProgress).filter_by(student_id=student.id).first()
+        if progress:
+            msg.append("<b>Ручное тестирование:</b>")
+            # 1 модуль
+            if progress.m1_start_date:
+                msg.append(f"- Тема 1: {MANUAL_MODULE_1_LINK}")
+            # 2 модуль
+            if progress.m2_1_start_date:
+                msg.append(f"- Тема 2.1: {MANUAL_MODULE_2_LINKS.get('Тема 2.1', '-')}")
+            if progress.m2_2_start_date:
+                msg.append(f"- Тема 2.2: {MANUAL_MODULE_2_LINKS.get('Тема 2.2', '-')}")
+            if progress.m2_3_start_date:
+                msg.append(
+                    f"- Тема 2.3: {MANUAL_MODULE_2_LINKS.get('Тема 2.3', '-')}\n"
+                    f"- Тема 2.4: https://thankful-candy-c57.notion.site/2-4-20594f774aab8197a077ef3921eaf641?source=copy_link"
+                )
+            # 3 модуль
+            if progress.m3_1_start_date:
+                msg.append(f"- Тема 3.1: {MANUAL_MODULE_3_LINKS.get('Тема 3.1', '-')}")
+            if progress.m3_2_start_date:
+                msg.append(f"- Тема 3.2: {MANUAL_MODULE_3_LINKS.get('Тема 3.2', '-')}")
+            if progress.m3_3_start_date:
+                msg.append(f"- Тема 3.3: {MANUAL_MODULE_3_LINKS.get('Тема 3.3', '-')}")
+            # 4 модуль
+            if progress.m4_1_start_date:
+                msg.append(f"- Тема 4.1: {MANUAL_MODULE_4_LINKS.get('Тема 4.1', '-')}")
+            if progress.m4_2_start_date:
+                msg.append(f"- Тема 4.2: {MANUAL_MODULE_4_LINKS.get('Тема 4.2', '-')}")
+            if progress.m4_3_start_date:
+                msg.append(f"- Тема 4.3: {MANUAL_MODULE_4_LINKS.get('Тема 4.3', '-')}\n"
+                           f"- Тема 4.4: {MANUAL_MODULE_4_LINKS.get('Тема 4.4', '-')}\n"
+                           f"GRPC: https://thankful-candy-c57.notion.site/GRPC-2e994f774aab807bba38fc9f4bcae599?source=copy_link\n")
+            if getattr(progress, 'm4_5_start_date', None):
+                msg.append(f"- Тема 4.5: {MANUAL_MODULE_4_LINKS.get('Тема 4.5', '-')}")
+            if getattr(progress, 'm4_mock_exam_start_date', None):
+                msg.append(f"- Мок экзамен: {MANUAL_MODULE_4_LINKS.get('Мок экзамен','-')}")
+    # Автотестирование
+    if student.training_type.lower().startswith("авто") or student.training_type.lower().startswith("фулл"):
+        progress = session.query(AutoProgress).filter_by(student_id=student.id).first()
+        if progress:
+            msg.append("\n<b>Автотестирование:</b>")
+            for i in range(1, 9):
+                if getattr(progress, f"m{i}_start_date", None):
+                    msg.append(f"- Модуль {i}: {AUTO_MODULE_LINKS.get(i,'-')}")
+    if not msg:
+        await update.message.reply_text("У вас пока нет открытых тем.")
+    else:
+        await update.message.reply_text("\n".join(msg), parse_mode="HTML")

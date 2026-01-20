@@ -22,7 +22,7 @@ from commands.admin_functions import (
     save_mentor_direction,
 )
 from commands.new.handlers import start_topic_submission, select_topic, submit_topic_students
-from commands.start_command import start_command, my_topics_and_links
+from commands.start_command import start_command
 from commands.homework_menti import *
 from commands.homework_mentor import *
 from commands.payment_menti import request_payment, forward_payment, request_commission_payment, \
@@ -30,7 +30,8 @@ from commands.payment_menti import request_payment, forward_payment, request_com
 from commands.payment_mentor import reject_payment, show_pending_payments, check_payment_by_id, confirm_payment
 from commands.student_progress import request_student_progress, show_student_progress
 from commands.states import *
-from commands.get_new_topic import get_new_topic_entry, get_new_topic_direction, GET_TOPIC_DIRECTION
+from commands.get_new_topic import get_new_topic_entry, get_new_topic_direction, GET_TOPIC_DIRECTION, \
+    my_topics_and_links
 from commands.infinite_bugs import infinite_bugs_entry, select_chapter, select_task, process_bug_report
 from commands.rules_acceptance import show_rules, accept_rules_callback
 from commands.curator_request import request_curator_assignment, select_curator_direction, confirm_curator_request
