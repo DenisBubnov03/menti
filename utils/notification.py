@@ -11,45 +11,47 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 from data_base.db import DATABASE_URL
 
+# Импорт URL базы данных из вашего файла настроек (если требуется)
+# from data_base.db import DATABASE_URL
+
+# --- НАСТРОЙКИ РАССЫЛКИ ---
+# Поменяйте на False, если хотите, чтобы бот писал ТОЛЬКО кураторам и директорам
+SEND_TO_STUDENTS = False
+
 # --- ИНИЦИАЛИЗАЦИЯ ---
 BASE_DIR = Path(__file__).resolve().parent.parent
 dotenv_path = BASE_DIR / '.env'
 load_dotenv(dotenv_path=dotenv_path)
 
 TOKEN = os.getenv("TELEGRAM_TOKEN")
-DATABASE_URL = DATABASE_URL
+DATABASE_URL = DATABASE_URL  # Или импортируйте напрямую, как в вашем примере
 MY_PERSONAL_ID = 1257163820
 
 bot = Bot(token=TOKEN)
 JSON_FILE = Path(__file__).resolve().parent / "notification_state.json"
 
-# --- ШАБЛОНЫ (без изменений) ---
+# --- ШАБЛОНЫ СООБЩЕНИЙ ---
 first_masage = "{student_name}, привет! Мы не созванивались уже {days_passed} дн. Решил уточнить: всё ли в порядке? 🙌"
 second_massage_student = "{student_name}, добрый день! Заметил паузу в {days_passed} д. Есть вопросы по программе? 😊"
 third_massage_student = "{student_name}, привет! Мы не общались уже {days_passed} д. Напиши куратору, чтобы обсудить прогресс! 🔥"
 
+
+# --- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ---
+
 def get_director_chat_id_from_db(director_id: int) -> Optional[int]:
-    """
-    Получает chat_id ментора/директора из базы данных по его первичному ключу (ID).
-    """
+    """Получает chat_id директора из базы данных."""
     try:
-        # Используем DATABASE_URL из .env
         conn = psycopg2.connect(DATABASE_URL)
         cur = conn.cursor()
-
         cur.execute("SELECT chat_id FROM mentors WHERE id = %s", (director_id,))
         row = cur.fetchone()
-
         cur.close()
         conn.close()
-
-        if row and row[0]:
-            return int(row[0])
-        return None
+        return int(row[0]) if row and row[0] else None
     except Exception as e:
         print(f"❌ Ошибка при получении chat_id директора {director_id}: {e}")
         return None
-# --- ФУНКЦИИ ---
+
 
 def load_state():
     if JSON_FILE.exists():
@@ -78,6 +80,7 @@ def _director_ids_for_training_type(training_type: Optional[str]) -> list[int]:
 
 
 async def send_smart_message(chat_id, text, kb=None, tg_name=None):
+    """Отправляет сообщение и пересылает отчет админу в случае ошибки."""
     try:
         target = str(chat_id).strip()
         if not target or target.lower() == 'none':
@@ -103,7 +106,7 @@ async def send_smart_message(chat_id, text, kb=None, tg_name=None):
         return False
 
 
-# --- ОСНОВНОЙ СКРИПТ ---
+# --- ОСНОВНОЙ СКРИПТ ПРОВЕРКИ ---
 
 async def run_check():
     if not DATABASE_URL: return
@@ -115,6 +118,7 @@ async def run_check():
         print(f"❌ Ошибка БД: {e}")
         return
 
+    # Запрашиваем данные активных студентов
     cur.execute("""
         SELECT s.id, s.fio, m.chat_id, s.chat_id, s.telegram, s.last_call_date, s.training_type
         FROM students s
@@ -124,6 +128,7 @@ async def run_check():
     """)
     rows = cur.fetchall()
 
+    # Кешируем chat_id директоров
     cur.execute("SELECT id, chat_id FROM mentors WHERE id IN (1, 3);")
     director_chat_ids = {int(row_id): row_chat_id for row_id, row_chat_id in cur.fetchall() if row_chat_id}
 
@@ -143,14 +148,18 @@ async def run_check():
             continue
 
         days_passed = (today - last_call).days
+
+        # Обнуляем студента в JSON, если он созвонился
         if days_passed <= 14:
             if s_id_str in state: del state[s_id_str]
             continue
 
+        # Проверка паузы (active_hold)
         if state.get(s_id_str, {}).get("active_hold"):
             last_notified = datetime.strptime(state[s_id_str]["last_notified"], "%Y-%m-%d").date()
             if (today - last_notified).days < 14: continue
 
+        # Расчет стадии
         if days_passed >= 35:
             required_stage = 4
         elif days_passed >= 28:
@@ -170,10 +179,15 @@ async def run_check():
             "training_type": training_type or "",
         }
 
-        if required_stage == 1:
-            msg = _render_template(first_masage, context)
-            await send_smart_message(student_target, msg, tg_name=s_telegram)
+        # --- ЛОГИКА СТАДИЙ ---
 
+        if required_stage == 1:
+            # Уведомление студенту (если включено)
+            if SEND_TO_STUDENTS:
+                msg = _render_template(first_masage, context)
+                await send_smart_message(student_target, msg, tg_name=s_telegram)
+
+            # Кнопки куратору
             kb = InlineKeyboardMarkup(inline_keyboard=[
                 [InlineKeyboardButton(text="✅ Активен (2 нед.)", callback_data=f"keep_active:{s_id}")],
                 [InlineKeyboardButton(text="❌ Не учится", callback_data=f"set_inactive:{s_id}")]
@@ -181,8 +195,10 @@ async def run_check():
             await send_smart_message(m_chat_id, f"🔔 <b>{s_name}</b> молчит {days_passed} дн. Подтвердите статус:", kb)
 
         elif required_stage == 2:
-            msg = _render_template(second_massage_student, context)
-            await send_smart_message(student_target, msg, tg_name=s_telegram)
+            if SEND_TO_STUDENTS:
+                msg = _render_template(second_massage_student, context)
+                await send_smart_message(student_target, msg, tg_name=s_telegram)
+
             alert = f"⚠️ 3 нед: <b>{s_name}</b> {s_telegram} ({training_type})"
             curator_digests.setdefault(m_chat_id, []).append(alert)
             for d_id in _director_ids_for_training_type(training_type):
@@ -190,8 +206,10 @@ async def run_check():
                 if d_chat: director_digests.setdefault(d_chat, []).append(alert)
 
         elif required_stage == 3:
-            msg = _render_template(third_massage_student, context)
-            await send_smart_message(student_target, msg, tg_name=s_telegram)
+            if SEND_TO_STUDENTS:
+                msg = _render_template(third_massage_student, context)
+                await send_smart_message(student_target, msg, tg_name=s_telegram)
+
             alert = f"🚨 <b>АЛАРМ 4 нед</b>: {s_name} {s_telegram}"
             curator_digests.setdefault(m_chat_id, []).append(alert)
             for d_id in _director_ids_for_training_type(training_type):
@@ -199,6 +217,7 @@ async def run_check():
                 if d_chat: director_digests.setdefault(d_chat, []).append(alert)
 
         elif required_stage == 4:
+            # Stage 4 — это всегда индивидуальное сообщение куратору
             kb = InlineKeyboardMarkup(inline_keyboard=[
                 [InlineKeyboardButton(text="✅ Да, отчислить", callback_data=f"drop_student:{s_id}")],
                 [InlineKeyboardButton(text="❌ Нет, оставить", callback_data=f"keep_active:{s_id}")]
@@ -208,6 +227,8 @@ async def run_check():
 
         state[s_id_str] = {"stage": required_stage, "last_notified": str(today), "active_hold": False}
 
+    # --- ОТПРАВКА ДАЙДЖЕСТОВ ---
+
     for chat_id, alerts in curator_digests.items():
         await send_smart_message(chat_id, "<b>📋 Сводка по пропускам (2-3 недели):</b>\n\n" + "\n".join(alerts))
 
@@ -215,7 +236,7 @@ async def run_check():
         await send_smart_message(chat_id, "<b>📊 Отчет для руководства:</b>\n\n" + "\n".join(alerts))
 
     save_state(state)
-    cur.close();
+    cur.close()
     conn.close()
     await bot.session.close()
 
