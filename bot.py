@@ -1,7 +1,12 @@
 import asyncio
+import json
 import tracemalloc
 import threading
+from datetime import date
+from pathlib import Path
+import psycopg2
 
+from data_base.db import DATABASE_URL
 from setup_logging import setup_logging
 
 from telegram.ext import Application, CommandHandler, filters, CallbackQueryHandler, MessageHandler, ConversationHandler
@@ -41,10 +46,107 @@ from commands.create_meeting import create_meeting_entry, select_meeting_type
 import os
 from dotenv import load_dotenv
 
+from utils.notification import _director_ids_for_training_type, get_director_chat_id_from_db
+
 load_dotenv()
 tracemalloc.start()
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 
+
+async def handle_student_inactivity_buttons(update, context):
+    query = update.callback_query
+    action, student_id_raw = query.data.split(":")
+    student_id_str = str(student_id_raw)
+    await query.answer()
+
+    # Получаем данные куратора, который нажал кнопку
+    curator = update.effective_user
+    curator_tg = f"@{curator.username}" if curator.username else f"ID: {curator.id}"
+
+    base_dir = Path(__file__).resolve().parent
+    json_path = base_dir / "utils" / "notification_state.json"
+
+    if action in ["set_inactive", "drop_student"]:
+        try:
+            db_url = DATABASE_URL
+            with psycopg2.connect(db_url) as conn:
+                with conn.cursor() as cur:
+                    # 1. Добавляем s.telegram в запрос
+                    cur.execute("SELECT fio, training_type, telegram FROM students WHERE id = %s",
+                                (int(student_id_raw),))
+                    student_data = cur.fetchone()
+
+                    if student_data:
+                        s_name, t_type, s_tg = student_data  # s_tg — это ТГ ученика
+
+                        cur.execute(
+                            "UPDATE students SET training_status = 'Не учится' WHERE id = %s",
+                            (int(student_id_raw),)
+                        )
+                        conn.commit()
+
+                        # 2. Формируем расширенное сообщение для директора
+                        for d_id in _director_ids_for_training_type(t_type):
+                            d_chat = get_director_chat_id_from_db(d_id)
+                            if d_chat:
+                                msg = (
+                                    f"📉 <b>СТАТУС ИЗМЕНЕН</b>\n\n"
+                                    f"👤 Студент: <b>{s_name}</b> ({s_tg})\n"
+                                    f"👨‍🏫 Куратор: <b>{curator_tg}</b>\n"
+                                    f"📚 Направление: {t_type}\n"
+                                    f"📝 Действие: Отчисление за неактивность"
+                                )
+                                await context.bot.send_message(chat_id=d_chat, text=msg, parse_mode="HTML")
+
+            # Удаление из JSON (стейта)
+            if json_path.exists():
+                with open(json_path, 'r', encoding='utf-8') as f:
+                    state = json.load(f)
+                if student_id_str in state:
+                    del state[student_id_str]
+                    with open(json_path, 'w', encoding='utf-8') as f:
+                        json.dump(state, f, ensure_ascii=False, indent=4)
+
+            await query.edit_message_text(text=f"✅ Статус ученика {s_name} изменен. Руководство уведомлено.")
+
+        except Exception as e:
+            print(f"❌ ОШИБКА при отчислении: {e}")
+            await query.edit_message_text(text="⚠️ Ошибка при обновлении данных.")
+
+    # --- 2. ПАУЗА (keep_active) ---
+    elif action == "keep_active":
+        if json_path.exists():
+            with open(json_path, 'r', encoding='utf-8') as f:
+                state = json.load(f)
+
+            if student_id_str in state:
+                state[student_id_str]["active_hold"] = True
+                state[student_id_str]["last_notified"] = str(date.today())
+                state[student_id_str].pop("slow_progress", None)
+
+                with open(json_path, 'w', encoding='utf-8') as f:
+                    json.dump(state, f, ensure_ascii=False, indent=4)
+
+                await query.edit_message_text(
+                    text="✅ Принято! Пауза 2 недели. Если созвона не будет, я вернусь с проверкой позже."
+                )
+
+    # --- 3. МЕДЛЕННЫЙ ПРОГРЕСС (slow_progress) ---
+    elif action == "slow_progress":
+        if json_path.exists():
+            with open(json_path, 'r', encoding='utf-8') as f:
+                state = json.load(f)
+
+            if student_id_str in state:
+                state[student_id_str]["slow_progress"] = True
+                state[student_id_str]["last_notified"] = str(date.today())
+
+                with open(json_path, 'w', encoding='utf-8') as f:
+                    json.dump(state, f, ensure_ascii=False, indent=4)
+
+                await query.edit_message_text(
+                    text="⏳ Статус 'Долго учится' установлен. Уведомления будут приходить раз в неделю."
+                )
 
 def main():
     # Настраиваем логирование
@@ -275,7 +377,8 @@ def main():
     application.add_handler(homework_submission_handler)
     application.add_handler(CommandHandler("start", start_command))
     application.add_handler(MessageHandler(filters.TEXT & filters.Regex("📜 Мои темы и ссылки"), my_topics_and_links))
-    
+    application.add_handler(
+        CallbackQueryHandler(handle_student_inactivity_buttons, pattern="^(set_inactive|keep_active|drop_student):"))
     # # Запускаем планировщики уведомлений в отдельных потоках
     # def run_notification_scheduler():
     #     asyncio.run(schedule_homework_notifications(application.bot))
