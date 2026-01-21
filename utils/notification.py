@@ -16,7 +16,7 @@ from data_base.db import DATABASE_URL
 
 # --- НАСТРОЙКИ РАССЫЛКИ ---
 # Поменяйте на False, если хотите, чтобы бот писал ТОЛЬКО кураторам и директорам
-SEND_TO_STUDENTS = False
+SEND_TO_STUDENTS = True
 
 # --- ИНИЦИАЛИЗАЦИЯ ---
 BASE_DIR = Path(__file__).resolve().parent.parent
