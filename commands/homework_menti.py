@@ -1,7 +1,7 @@
 from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import MessageHandler, ConversationHandler
 
-from commands.base_function import back_to_main_menu
+from commands.base_function import back_to_main_menu, update_student_data
 from commands.rules_checker import check_rules_accepted
 from data_base.db import session
 
@@ -13,7 +13,7 @@ from data_base.operations import get_pending_homework, approve_homework, \
 
 # Импорт для AI проверки темы 4.5
 import asyncio
-from commands.ai_check_45 import review_45_async, AICheckRepository, extract_text
+from commands.ai_check_45 import review_45_async
 
 
 async def get_submission_payload(submission_id: int) -> dict:
@@ -154,7 +154,7 @@ MODULES_TOPICS = {
     }
 }
 
-
+@update_student_data
 @check_rules_accepted
 async def submit_homework(update: Update, context):
     """Студент начинает процесс сдачи домашки"""
@@ -555,9 +555,8 @@ async def save_and_forward_homework(update: Update, context):
             asyncio.create_task(
                 review_45_async(
                     submission_id=homework_id,
-                    extract_text_fn=extract_text,
                     get_submission_payload=get_submission_with_file,
-                    repo=None,  # Будет создан внутри review_45_async
+                    repo=None,  # Создастся внутри
                     notify_student=notify_student_with_bot,
                     notify_mentor=notify_mentor_with_bot
                 )
@@ -574,40 +573,56 @@ async def save_and_forward_homework(update: Update, context):
     return ConversationHandler.END
 
 
+from data_base.db import get_session
+from commands.ai_check_45 import TopicAttemptsRepository
+
+# Список тем, которые требуют проверки через AI/попытки
+# Это позволит легко добавлять новые темы без правки логики функции
+AI_CHECKED_TOPICS = ["Тема 4.5"]
+
+
 def get_available_topics(student_id: int, training_type: str) -> dict:
-    """Получает доступные темы для студента на основе его прогресса"""
-    from data_base.db import get_session
-    from commands.ai_check_45 import TopicAttemptsRepository
-    
+    """
+    Получает доступные темы для студента на основе его прогресса.
+    Темы с автопроверкой скрываются только после успешного прохождения (score >= 50).
+    """
+    all_topics_config = MODULES_TOPICS.get(training_type, {})
+    if not all_topics_config:
+        return {}
+
+    available_modules = {}
+
     with get_session() as db_session:
         attempts_repo = TopicAttemptsRepository(db_session)
-        available_modules = {}
-        
-        # Получаем все темы для направления
-        all_topics = MODULES_TOPICS.get(training_type, {})
-        
-        for module, topics in all_topics.items():
+
+        # Предварительно кэшируем статусы для AI-тем, чтобы не лезть в базу в цикле
+        # Если тем станет много, можно будет достать всё одним запросом
+        ai_statuses = {
+            topic: attempts_repo.get_attempts(student_id, topic)
+            for topic in AI_CHECKED_TOPICS
+        }
+
+        for module, topics in all_topics_config.items():
             if module == "Отмена":
                 continue
-                
-            available_topics = []
+
+            # Используем list comprehension для чистоты
+            filtered_topics = []
             for topic in topics:
                 if topic == "Отмена":
                     continue
-                    
-                # Проверяем доступность темы 4.5
-                if topic == "Тема 4.5":
-                    attempts_info = attempts_repo.get_attempts(student_id, "Тема 4.5")
-                    # Скрываем тему 4.5 только если она завершена (оценка >= 50)
-                    # Тема остается доступной для всех попыток, включая 2-ю
-                    if not attempts_info["is_completed"]:
-                        available_topics.append(topic)
-                else:
-                    # Для остальных тем показываем всегда
-                    available_topics.append(topic)
-            
-            if available_topics:
-                available_modules[module] = available_topics
-        
-        return available_modules
 
+                # Логика фильтрации
+                if topic in AI_CHECKED_TOPICS:
+                    status = ai_statuses.get(topic)
+                    # Если тема не завершена (нет оценки 50+), она доступна
+                    if status and not status.get("is_completed"):
+                        filtered_topics.append(topic)
+                else:
+                    # Обычные темы доступны всегда (или добавь сюда свою логику)
+                    filtered_topics.append(topic)
+
+            if filtered_topics:
+                available_modules[module] = filtered_topics
+
+    return available_modules
