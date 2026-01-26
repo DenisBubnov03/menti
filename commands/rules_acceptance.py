@@ -1,5 +1,7 @@
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes, ConversationHandler
+
+from commands.base_function import update_student_data
 from data_base.db import session
 from data_base.models import Student
 
@@ -19,6 +21,7 @@ async def check_rules_acceptance(update: Update, context: ContextTypes.DEFAULT_T
     
     return student.rules_accepted
 
+@update_student_data
 async def show_rules(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Показывает правила пользования и обучения"""
     keyboard = [

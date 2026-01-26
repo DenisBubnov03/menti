@@ -2,7 +2,7 @@ from telegram import ReplyKeyboardMarkup, KeyboardButton, Update
 from telegram.ext import ConversationHandler, ContextTypes
 from datetime import datetime
 
-from commands.base_function import back_to_main_menu
+from commands.base_function import back_to_main_menu, update_student_data
 from commands.rules_checker import check_rules_accepted
 from data_base.db import session
 from data_base.models import Student, ManualProgress, AutoProgress
@@ -10,7 +10,7 @@ from data_base.operations import get_student_by_fio_or_telegram
 from utils.request_logger import log_request, log_conversation_handler
 
 GET_TOPIC_DIRECTION = 1001
-
+@update_student_data
 @log_request("get_new_topic_entry")
 @check_rules_accepted
 async def get_new_topic_entry(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -402,7 +402,7 @@ async def handle_auto_direction(update, context, student):
         await update.message.reply_text("Вы прошли все модули автотестирования!")
         return await back_to_main_menu(update, context)
 
-
+@update_student_data
 @log_request("my_topics_and_links")
 async def my_topics_and_links(update: Update, context: ContextTypes.DEFAULT_TYPE):
     student_telegram = f"@{update.message.from_user.username}"

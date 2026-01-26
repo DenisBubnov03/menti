@@ -1,7 +1,7 @@
 from telegram import Update, ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import ConversationHandler
 
-from commands.base_function import back_to_main_menu
+from commands.base_function import back_to_main_menu, update_student_data
 from commands.rules_checker import check_rules_accepted
 from commands.states import PAYMENT_WAITING, PAYMENT_CONFIRMATION
 from data_base.db import session
@@ -16,7 +16,7 @@ from data_base.db import session
 from data_base.operations import get_mentor_by_student
 from commands.states import PAYMENT_WAITING
 
-
+@update_student_data
 @check_rules_accepted
 async def request_payment(update: Update, context):
     """Студент нажимает 'Оплата за обучение'"""
@@ -223,7 +223,8 @@ async def forward_commission_payment(update: Update, context):
     await back_to_main_menu(update, context)
     return ConversationHandler.END
 
-
+@update_student_data
+@update_student_data
 async def request_commission_payment(update: Update, context):
     """Студент инициирует выплату комиссии"""
     student_telegram = "@" + update.message.from_user.username

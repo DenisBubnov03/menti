@@ -84,3 +84,47 @@ async def back_to_main_menu(update: Update, context):
     # ✅ Если пользователь не найден
     await update.message.reply_text("❌ Ошибка: ваш профиль не найден.")
     return ConversationHandler.END
+
+
+from functools import wraps
+from telegram import Update
+from telegram.ext import ContextTypes
+
+def update_student_data(handler):
+    @wraps(handler)
+    async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE, *args, **kwargs):
+        user = update.effective_user
+        if not user:
+            return
+
+        # 1. Берем текущие данные из Telegram
+        current_chat_id = str(user.id) # В модели у тебя String(50)
+        current_username = f"@{user.username}" if user.username else None
+
+        # 2. Ищем студента по chat_id (это надежнее, чем по нику)
+        student = session.query(Student).filter(Student.chat_id == current_chat_id).first()
+
+        # 3. Если по chat_id не нашли, пробуем найти по нику
+        # (это нужно для "первой связки", если chat_id еще не был записан)
+        if not student and current_username:
+            student = session.query(Student).filter(Student.telegram == current_username).first()
+            if student:
+                # Если нашли по нику, сразу привязываем chat_id на будущее
+                student.chat_id = current_chat_id
+                session.commit()
+
+        # 4. Проверка регистрации
+        if not student:
+            if update.message:
+                await update.message.reply_text("❌ Вы не зарегистрированы как студент!")
+            return
+
+        # 5. САМАЯ ВАЖНАЯ ЧАСТЬ: Обновляем ник, если он изменился
+        if current_username and student.telegram != current_username:
+            print(f"🔄 Обновляем ник студента ID {student.id}: {student.telegram} -> {current_username}")
+            student.telegram = current_username
+            session.commit()
+
+        return await handler(update, context, *args, **kwargs)
+
+    return wrapper

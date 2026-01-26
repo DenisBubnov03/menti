@@ -3,7 +3,7 @@ import logging
 from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import ConversationHandler, ContextTypes
 
-from commands.base_function import back_to_main_menu
+from commands.base_function import back_to_main_menu, update_student_data
 from commands.states import CURATOR_DIRECTION_SELECTION, CURATOR_CONFIRMATION
 from data_base.db import session
 from data_base.models import Student, Mentor
@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 # ID пользователя для уведомлений (из переменной окружения)
 NOTIFICATION_USER_ID = int(os.getenv('NOTIFICATION_BOT_USER_ID', '0'))
 
-
+@update_student_data
 async def request_curator_assignment(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Начинает процесс запроса назначения куратора"""
     student_telegram = f"@{update.message.from_user.username}"

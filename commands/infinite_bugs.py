@@ -2,7 +2,7 @@ import logging
 from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import ConversationHandler, ContextTypes
 
-from commands.base_function import back_to_main_menu
+from commands.base_function import back_to_main_menu, update_student_data
 from commands.rules_checker import check_rules_accepted
 from commands.states import INFINITE_BUGS_CHAPTER, INFINITE_BUGS_TASK, INFINITE_BUGS_LINK
 from data_base.db import session
@@ -23,7 +23,7 @@ INFINITE_BUGS_TASKS = {
         "Задание 2": "https://thankful-candy-c57.notion.site/2-2-24694f774aab80b4a1fbcc8684d8a145?source=copy_link"
     }
 }
-
+@update_student_data
 @log_request("infinite_bugs_entry")
 @check_rules_accepted
 async def infinite_bugs_entry(update: Update, context: ContextTypes.DEFAULT_TYPE):
