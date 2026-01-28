@@ -150,6 +150,14 @@ async def submit_topic_students(update: Update, context: ContextTypes.DEFAULT_TY
 
         for username in usernames:
             student = session.query(Student).filter_by(telegram=username).first()
+            if student.training_status == 'Не учится':
+                student.training_status = 'Учится'
+                try:
+                    session.commit()  # Сохраняем изменения в БД
+                    print(f"Статус студента {student.fio} успешно обновлен.")
+                except Exception as e:
+                    session.rollback()  # Откатываем в случае ошибки
+                    print(f"Ошибка при сохранении: {e}")
             if student:
                 if student.auto_mentor_id != mentor.id:
                     not_found.append(username + " (не ваш студент)")
@@ -253,6 +261,14 @@ async def submit_topic_students(update: Update, context: ContextTypes.DEFAULT_TY
 
         for username in usernames:
             student = session.query(Student).filter_by(telegram=username).first()
+            if student.training_status == 'Не учится':
+                student.training_status = 'Учится'
+                try:
+                    session.commit()  # Сохраняем изменения в БД
+                    print(f"Статус студента {student.fio} успешно обновлен.")
+                except Exception as e:
+                    session.rollback()  # Откатываем в случае ошибки
+                    print(f"Ошибка при сохранении: {e}")
             if student:
                 if not (student.mentor_id == mentor.id or student.auto_mentor_id == mentor.id):
                     not_found.append(username + " (не ваш студент)")
