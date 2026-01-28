@@ -238,6 +238,7 @@ async def run_check():
     save_state(state)
     cur.close()
     conn.close()
+    await bot.send_message(chat_id=MY_PERSONAL_ID, text="✅ Крон-задача проверки студентов успешно выполнена")
     await bot.session.close()
 
 
