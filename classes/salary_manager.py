@@ -55,7 +55,8 @@ def _get_theme_price_for_flow(manager_instance, mentor_id: int, is_manual: bool)
         price, _ = manager_instance._calculate_amount_auto(mentor_id=mentor_id, amount=1.0)
     return price
 
-
+CURATOR_FIXED_SALARY_MANUAL = 9200.0
+CURATOR_FIXED_SALARY_AUTO = 17200.0
 # =======================================================================
 # 2. ОСНОВНОЙ КЛАСС MANAGER
 # =======================================================================
@@ -69,76 +70,64 @@ class SalaryManager:
 
     # ❗ ИСПРАВЛЕНИЕ: Добавлен объект student
     def _calculate_amount_manual(self, student: Student, mentor_id: int, amount: float) -> tuple[float, str]:
-
-        # 1. ОПРЕДЕЛЕНИЕ СТОИМОСТИ КУРСА
-        is_fullstack = (student.mentor_id is not None) and (student.auto_mentor_id is not None)
-
-        if is_fullstack:
-            # Для фуллстека берем стоимость из конфига
-            course_cost = config.Config.FULLSTACK_MANUAL_COURSE_COST
-        elif student.total_cost:
-            # ДЛЯ НЕ-ФУЛЛСТЕКА берем стоимость из поля total_cost
-            course_cost = float(student.total_cost)
-        else:
-            # Фоллбек
-            course_cost = config.Config.FULLSTACK_MANUAL_COURSE_COST
-
-        base_rate_kurator = config.Config.MANUAL_CURATOR_RESERVE_PERCENT
+        """
+        Расчет оплаты за 1 тему (ручное направление).
+        Основан на фиксированной сумме 9200 руб.
+        """
         count_calls_total = config.Config.MANUAL_CALLS_TOTAL
-        base_rate_dir = config.Config.MANUAL_DIR_RESERVE_PERCENT
 
-        # 2. ОСНОВНОЙ РАСЧЕТ (использует динамический course_cost)
-        if mentor_id != 1:
+        # Если это обычный куратор (не Директор)
+        if mentor_id != DIRECTOR_ID_MANUAL:
             try:
-                calls_price = (course_cost * base_rate_kurator) / count_calls_total
+                # Берем фиксированную сумму и делим на кол-во тем
+                calls_price = CURATOR_FIXED_SALARY_MANUAL / count_calls_total
             except ZeroDivisionError:
                 calls_price = 0
 
-            comment = ("Оплата за 1 принятую тему ручного направления куратору. ")
-            return calls_price, comment
+            comment = "Оплата за 1 принятую тему ручного направления куратору."
+            return round(calls_price, 2), comment
+
         else:
+            course_cost = float(
+                student.total_cost) if student.total_cost else config.Config.FULLSTACK_MANUAL_COURSE_COST
+            base_rate_dir = config.Config.MANUAL_DIR_RESERVE_PERCENT
             try:
                 calls_price = (course_cost * base_rate_dir) / count_calls_total
             except ZeroDivisionError:
                 calls_price = 0
 
-            comment = ("Оплата за 1 принятую тему ручного направления директору.")
-            return calls_price, comment
+            comment = "Оплата директору за 1 тему (ручное направление)."
+            return round(calls_price, 2), comment
 
     def _calculate_amount_auto(self, student: Student, mentor_id: int, amount: float) -> tuple[float, str]:
-
-        # 1. ОПРЕДЕЛЕНИЕ СТОИМОСТИ КУРСА
-        is_fullstack = (student.mentor_id is not None) and (student.auto_mentor_id is not None)
-
-        if is_fullstack:
-            course_cost = config.Config.FULLSTACK_AUTO_COURSE_COST
-        elif student.total_cost:
-            # ДЛЯ НЕ-ФУЛЛСТЕКА берем стоимость из поля total_cost
-            course_cost = float(student.total_cost)
-        else:
-            course_cost = config.Config.FULLSTACK_AUTO_COURSE_COST
-
-        base_rate_kurator = config.Config.AUTO_CURATOR_RESERVE_PERCENT
+        """
+        Расчет оплаты за 1 тему (авто направление).
+        Основан на фиксированной сумме 17800 руб.
+        """
         count_calls_total = config.Config.AUTO_CALLS_TOTAL
-        base_rate_dir = config.Config.AUTO_DIR_RESERVE_PERCENT
 
-        # 2. ОСНОВНОЙ РАСЧЕТ
-        if mentor_id != 3:
+        # Если это обычный куратор (не Директор)
+        if mentor_id != DIRECTOR_ID_AUTO:
             try:
-                calls_price = (course_cost * base_rate_kurator) / count_calls_total
+                # Берем фиксированную сумму и делим на кол-во тем
+                calls_price = CURATOR_FIXED_SALARY_AUTO / count_calls_total
             except ZeroDivisionError:
                 calls_price = 0
 
-            comment = ("Оплата за 1 принятую тему авто направления куратору. ")
-            return calls_price, comment
+            comment = "Оплата за 1 принятую тему авто направления куратору"
+            return round(calls_price, 2), comment
+
         else:
+            # Логика для Директора
+            course_cost = float(student.total_cost) if student.total_cost else config.Config.FULLSTACK_AUTO_COURSE_COST
+            base_rate_dir = config.Config.AUTO_DIR_RESERVE_PERCENT
             try:
                 calls_price = (course_cost * base_rate_dir) / count_calls_total
             except ZeroDivisionError:
                 calls_price = 0
 
-            comment = (f"Оплата за 1 принятую тему авто направления директору. ")
-            return calls_price, comment
+            comment = "Оплата директору за 1 тему (авто направление)."
+            return round(calls_price, 2), comment
 
     # --- ИНИЦИАЛИЗАЦИЯ (Создание Долга) ---
 
