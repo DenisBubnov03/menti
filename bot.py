@@ -8,7 +8,7 @@ import psycopg2
 
 from data_base.db import DATABASE_URL
 from setup_logging import setup_logging
-
+from commands.vpn_commands import start_vpn_config, handle_vpn_telegram
 from telegram.ext import Application, CommandHandler, filters, CallbackQueryHandler, MessageHandler, ConversationHandler
 from telegram.error import TimedOut, NetworkError, RetryAfter
 
@@ -27,7 +27,7 @@ from commands.admin_functions import (
     save_mentor_direction,
 )
 from commands.new.handlers import start_topic_submission, select_topic, submit_topic_students
-from commands.start_command import start_command
+from commands.start_command import start_command, restart
 from commands.homework_menti import *
 from commands.homework_mentor import *
 from commands.payment_menti import request_payment, forward_payment, request_commission_payment, \
@@ -351,6 +351,21 @@ def main():
         },
         fallbacks=[]
     )
+    # Обработчик генерации VPN конфигов
+    vpn_handler = ConversationHandler(
+        entry_points=[MessageHandler(filters.Regex("^Создать OVPN конфиг$"), start_vpn_config)],
+        states={
+            VPN_AWAITING_TELEGRAM: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, handle_vpn_telegram),
+            ],
+        },
+        fallbacks=[
+            MessageHandler(filters.Regex("^Главное меню$"), back_to_main_menu),
+            CommandHandler("restart", restart),
+        ],
+    )
+    application.add_handler(vpn_handler)
+
 
     application.add_handler(student_progress_handler)
     application.add_handler(submit_topic_handler)

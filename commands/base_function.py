@@ -30,7 +30,8 @@ async def back_to_main_menu(update: Update, context):
                     [KeyboardButton("📢 Сделать рассылку")],
                     [KeyboardButton("🗑 Удалить ментора")],
                     [KeyboardButton("📅 Записи на звонки")],
-                    [KeyboardButton("📹 Создание встречи")]
+                    [KeyboardButton("📹 Создание встречи")],
+                    [KeyboardButton('Создать OVPN конфиг')]
                 ],
                 resize_keyboard=True
             )
@@ -45,6 +46,7 @@ async def back_to_main_menu(update: Update, context):
                 [KeyboardButton("📅 Записи на звонки")],
                 [KeyboardButton("📊 Проверить успеваемость")],
                 [KeyboardButton("📹 Создание встречи")],
+                [KeyboardButton('Создать OVPN конфиг')]
             ],
             resize_keyboard=True
         )
