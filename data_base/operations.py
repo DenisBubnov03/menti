@@ -1,8 +1,8 @@
 from datetime import datetime
 from decimal import Decimal
 
-from data_base.db import get_session, close_session, Session
-from data_base.models import Student, Mentor, Homework, Payment
+from data_base.db import get_session, close_session, Session, session
+from data_base.models import Student, Mentor, Homework, Payment, CareerConsultant
 
 
 def is_admin(username):
@@ -305,3 +305,15 @@ def get_mentor_by_direction(direction: str):
         raise
     finally:
         close_session()
+
+def get_mentor_by_telegram(telegram: str):
+    """Находит активного ментора по Telegram."""
+    # Убедитесь, что формат (с @ или без) совпадает с тем, как вы записываете их в базу
+    return session.query(Mentor).filter(Mentor.telegram == telegram).first()
+
+def get_career_consultant_by_telegram(telegram):
+    """Находит карьерного консультанта по Telegram."""
+    return session.query(CareerConsultant).filter(
+        CareerConsultant.telegram == telegram,
+        CareerConsultant.is_active == True
+    ).first()

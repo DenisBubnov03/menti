@@ -5,7 +5,7 @@ from data_base.models import Mentor, ManualProgress
 from data_base.operations import is_mentor, get_student_by_fio_or_telegram, is_admin
 from telegram import  ReplyKeyboardMarkup, KeyboardButton, Update
 from telegram.ext import ContextTypes
-from data_base.db import session
+from data_base.db import session, get_session
 from data_base.models import Student, ManualProgress, AutoProgress
 from commands.get_new_topic import MANUAL_MODULE_2_LINKS, MANUAL_MODULE_3_LINKS, MANUAL_MODULE_4_LINKS, \
     AUTO_MODULE_LINKS, MANUAL_MODULE_1_LINK
@@ -46,7 +46,8 @@ async def start_command(update, context):
                 [KeyboardButton("📊 Проверить успеваемость")],
                 [KeyboardButton("➕ Добавить ментора")],
                 [KeyboardButton("📢 Сделать рассылку")],
-                [KeyboardButton("🗑 Удалить ментора")]
+                [KeyboardButton("🗑 Удалить ментора")],
+                [KeyboardButton('Создать OVPN конфиг')]
                 # [KeyboardButton("📅 Записи на звонки")],
             ],
             resize_keyboard=True
@@ -82,6 +83,7 @@ async def start_command(update, context):
                 [KeyboardButton("📹 Создание встречи")],
                     # [KeyboardButton("📅 Записи на звонки")],
                 [KeyboardButton("📊 Проверить успеваемость")],
+                [KeyboardButton('Создать OVPN конфиг')]
             ],
             resize_keyboard=True
         )
@@ -255,3 +257,12 @@ async def start_command(update, context):
 
 
 
+async def restart(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Сбрасывает состояние и возвращает в меню."""
+    context.user_data.clear()
+
+    # Отрисовка меню через start
+    await start_command(update, context)
+
+    # ЭТО ОБЯЗАТЕЛЬНО для сброса состояния (ожидания ввода ТГ и т.д.)
+    return ConversationHandler.END
