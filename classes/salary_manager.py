@@ -80,7 +80,8 @@ class SalaryManager:
         if mentor_id != DIRECTOR_ID_MANUAL:
             try:
                 # Берем фиксированную сумму и делим на кол-во тем
-                calls_price = CURATOR_FIXED_SALARY_MANUAL / count_calls_total
+                # calls_price = CURATOR_FIXED_SALARY_MANUAL / count_calls_total
+                calls_price = 1150
             except ZeroDivisionError:
                 calls_price = 0
 
@@ -110,7 +111,8 @@ class SalaryManager:
         if mentor_id != DIRECTOR_ID_AUTO:
             try:
                 # Берем фиксированную сумму и делим на кол-во тем
-                calls_price = CURATOR_FIXED_SALARY_AUTO / count_calls_total
+                # calls_price = CURATOR_FIXED_SALARY_AUTO / count_calls_total
+                calls_price = 2866
             except ZeroDivisionError:
                 calls_price = 0
 

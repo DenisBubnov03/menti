@@ -117,7 +117,6 @@ async def check_payment_by_id(update: Update, context: ContextTypes.DEFAULT_TYPE
 async def confirm_payment(update: Update, context: ContextTypes.DEFAULT_TYPE):
     salary_manager = SalaryManager()
 
-    # Проверяем кнопку отмены
     if update.message.text and update.message.text.strip().lower() in ["отменить", "🔙 отменить"]:
         await update.message.reply_text("❌ Подтверждение платежа отменено.")
         return await back_to_main_menu(update, context)
@@ -133,63 +132,59 @@ async def confirm_payment(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("❌ Ошибка: платеж или студент не найдены.")
         return ConversationHandler.END
 
-    # ПРОВЕРКА: Если платеж уже был подтвержден ранее, не обрабатываем второй раз
     if payment.status == "подтвержден":
         await update.message.reply_text("⚠️ Этот платёж уже был подтвержден ранее.")
         return await back_to_main_menu(update, context)
 
-    # ========================================================
     # 1. ГЛАВНОЕ: МЕНЯЕМ СТАТУС В БАЗЕ
-    # ========================================================
     payment.status = "подтвержден"
-    session.add(payment)  # Фиксируем изменение статуса
-
-    # Определяем "старый" ли студент
-    CUTOFF_DATE = date(2025, 12, 1)
-    is_legacy = (
-            student.start_date and
-            student.start_date < CUTOFF_DATE and
-            (student.training_type or "").strip().lower() != "фуллстек"
-    )
+    session.add(payment)
 
     # ========================================================
-    # 2. РАСПРЕДЕЛЕНИЕ ЛОГИКИ ПО ТИПУ ПЛАТЕЖА
+    # 2. РАСПРЕДЕЛЕНИЕ ЛОГИКИ
     # ========================================================
 
-    # Если это платеж, за который полагается ЗП кураторам (Комиссия или Доплата)
+    # ВЕТКА А: Платежи, влияющие на ЗП (Комиссия и Доплата)
     if payment.comment in ["Комиссия", "Доплата"]:
+        CUTOFF_DATE = date(2025, 12, 1)
+        is_legacy = (
+                student.start_date and
+                student.start_date < CUTOFF_DATE and
+                (student.training_type or "").strip().lower() != "фуллстек"
+        )
+
         if is_legacy:
-            print(f"🚀 Обработка Legacy-платежа ({payment.comment}) для {student.telegram}")
             salary_manager.handle_legacy_payment_universal(
-                session=session,
-                payment_id=payment.id,
-                student_id=payment.student_id,
-                payment_amount=payment.amount,
-                payment_type=payment.comment
+                session=session, payment_id=payment.id, student_id=payment.student_id,
+                payment_amount=payment.amount, payment_type=payment.comment
             )
         else:
-            print(f"🚀 Обработка стандартного платежа через долги для {student.telegram}")
             salary_manager.create_salary_entry_from_payment(
-                session=session,
-                payment_id=payment.id,
-                student_id=payment.student_id,
+                session=session, payment_id=payment.id, student_id=payment.student_id,
                 payment_amount=payment.amount
             )
 
-        # Бонус для КК (только если комментарий именно "Комиссия")
         if payment.comment == "Комиссия":
             try:
-                print('start count kk commission')
                 salary_manager.add_kk_salary_record(session=session, payment_id=payment.id)
             except Exception as e:
                 print(f"Warn: failed to create KK commission: {e}")
 
+        # --- ВОТ ЭТОГО НЕ ХВАТАЛО ---
+        # Если это Доплата, она ДОЛЖНА увеличивать баланс студента,
+        # хотя она и находится в этой ветке.
+        if payment.comment == "Доплата":
+            student.payment_amount = (student.payment_amount or 0) + amount
+            if student.payment_amount >= (student.total_cost or 0):
+                student.fully_paid = "Да"
+            session.add(student)
+        # ----------------------------
+
+    # ВЕТКА Б: Обычная оплата (не комиссия и не доплата)
     else:
-        # Если это обычная оплата обучения (не комиссия)
         print(f"💰 Обработка основной оплаты обучения для {student.telegram}")
         student.payment_amount = (student.payment_amount or 0) + amount
 
-        # Проверка полной оплаты курса
         if student.payment_amount >= (student.total_cost or 0):
             student.fully_paid = "Да"
         session.add(student)
@@ -199,14 +194,12 @@ async def confirm_payment(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # ========================================================
     try:
         session.commit()
-        print(f"✅ Успешно подтверждено: Платёж {payment_id}, Студент {student.telegram}")
     except Exception as e:
         session.rollback()
         print(f"❌ Ошибка при сохранении в БД: {e}")
         await update.message.reply_text("❌ Произошла ошибка при сохранении данных.")
         return ConversationHandler.END
 
-    # Уведомление студенту
     if student.chat_id:
         try:
             await context.bot.send_message(
