@@ -1,4 +1,4 @@
-        .data_base/db.py
+        data_base/db.py
         .DS_Store
         .env
         .gitignore
@@ -15,3 +15,11 @@
         data_base/__pycache__/
         logs/
         utils/__pycache__/
+        *.pyc
+         # Секреты
+*.pyo
+*.pyd
+
+# Логи
+*.log
+/data_base/db.py
