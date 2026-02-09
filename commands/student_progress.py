@@ -8,7 +8,7 @@ from data_base.db import session
 from commands.states import STUDENT_PROGRESS_WAITING
 from datetime import datetime, date
 
-# --- ПОЛНАЯ КОНФИГУРАЦИЯ ТЕМ (СТРОГО ПО ТВОЕМУ MODELS.PY) ---
+# --- КОНФИГУРАЦИЯ ТЕМ (СТРОГО ПО ТВОЕМУ MODELS.PY) ---
 MODULES_TOPICS = {
     "Ручное тестирование": {
         "Модуль 1": ["Тема 1.4"],
@@ -27,7 +27,6 @@ MODULES_TOPICS = {
 }
 
 # Маппинг полей ManualProgress (Boolean и Date)
-# 4.2 и 4.3 ссылаются на одно общее поле m4_2_4_3_submission_date согласно модели
 MANUAL_FIELD_MAPPING = {
     "Тема 1.4": "m1_homework",
     "Тема 2.1": "m2_1_homework",
@@ -53,7 +52,6 @@ AUTO_DONE_MAPPING = {
 }
 
 
-# --- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ---
 def safe_date_format(date_value, default="None"):
     if not date_value: return default
     if hasattr(date_value, 'strftime'): return date_value.strftime('%Y-%m-%d')
@@ -82,16 +80,11 @@ async def show_student_progress(update, context):
 
     student = get_student_by_fio_or_telegram(text)
     if not student:
-        await update.message.reply_text(f"❌ Студент *{text}* не найден.", parse_mode="Markdown")
+        await update.message.reply_text(f"❌ Студент *{text}* не найден.")
         return STUDENT_PROGRESS_WAITING
 
     progress_info = await get_student_progress_info(student)
-
-    if len(progress_info) > 4000:
-        for i in range(0, len(progress_info), 4000):
-            await update.message.reply_text(progress_info[i:i + 4000])
-    else:
-        await update.message.reply_text(progress_info)
+    await update.message.reply_text(progress_info)
     return await back_to_main_menu(update, context)
 
 
@@ -101,12 +94,8 @@ async def get_student_progress_info(student):
     auto_p = session.query(AutoProgress).filter(AutoProgress.student_id == student.id).first()
     t_type = (student.training_type or "").lower()
 
-    report = [
-        f"👤 Студент: {student.fio}",
-        f"🎯 Курс: {student.training_type or 'Не определен'}",
-        f"📈 Статус: {student.training_status or 'Активен'}",
-        "\n┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈"
-    ]
+    report = [f"👤 Студент: {student.fio}", f"🎯 Курс: {student.training_type or 'Не определен'}",
+              f"📈 Статус: {student.training_status or 'Активен'}", "\n┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈"]
 
     # --- MANUAL QA ---
     if any(x in t_type for x in ["ручн", "фулл", "manual", "full"]):
@@ -120,28 +109,40 @@ async def get_student_progress_info(student):
                 m_total += 1
                 status_icon = "⭕"
 
-                # 1. Проверяем наличие ДЗ (строгое соответствие)
                 relevant_hws = [h for h in all_hws if h.topic and h.topic.strip() == topic]
                 hw_exists = len(relevant_hws) > 0
 
-                # 2. Определяем статус-иконку ТОЛЬКО на основе ManualProgress
-                is_passed = False
+                # Проверяем, стоит ли галочка в ManualProgress
+                is_passed_in_progress = False
                 if manual_p and topic in MANUAL_FIELD_MAPPING:
                     if getattr(manual_p, MANUAL_FIELD_MAPPING[topic], None):
-                        is_passed = True
+                        is_passed_in_progress = True
 
-                if is_passed:
+                # Проверяем статус ДЗ
+                hw_is_accepted = False
+                if hw_exists:
+                    st = [h.status.lower() for h in relevant_hws if h.status]
+                    hw_is_accepted = any(s in ["принято", "завершено", "проверено"] for s in st)
+
+                # Логика иконок:
+                if is_passed_in_progress and hw_is_accepted:
+                    # ДЗ принято И галочка стоит -> ВСЁ ОК
                     status_icon = "✅"
                     m_done += 1
+                elif hw_is_accepted and not is_passed_in_progress:
+                    # ДЗ принято, но галочки нет -> ПРОБЛЕМА
+                    status_icon = "🔴"
                 elif hw_exists:
-                    # Если ДЗ есть, но тема не закрыта — смотрим статус ДЗ для промежуточных иконок
                     st = [h.status.lower() for h in relevant_hws if h.status]
                     if any(s in ["ожидает проверки", "на проверке"] for s in st):
                         status_icon = "⏳"
                     elif any(s in ["отклонено", "в доработке", "доработка"] for s in st):
                         status_icon = "🟡"
                     else:
-                        status_icon = "⭕"  # Принято, но не проставлено в прогресс — оставляем круг
+                        status_icon = "⭕"
+                else:
+                    # Нет ДЗ вообще
+                    status_icon = "⭕"
 
                 hw_label = "📦 ДЗ: Есть" if hw_exists else "✖️ ДЗ: Нет"
                 manual_lines.append(f"  {status_icon} {topic} ({hw_label})")
@@ -165,24 +166,26 @@ async def get_student_progress_info(student):
             for topic in topics:
                 mod_total += 1
                 a_total += 1
-                topic_done = False
 
-                # Здесь логика аналогична: приоритет за AutoProgress (даты экзаменов)
+                # ЖЕСТКАЯ ПРОВЕРКА: ✅ ТОЛЬКО ИЗ AutoProgress
+                topic_passed = False
                 if auto_p and topic in AUTO_DONE_MAPPING:
                     if getattr(auto_p, AUTO_DONE_MAPPING[topic], None):
-                        topic_done = True
+                        topic_passed = True
 
-                # Если в AutoProgress пусто, проверяем статус в Homework
-                if not topic_done:
-                    relevant = [h for h in all_hws if h.topic and h.topic.strip() == topic]
-                    if any(h.status.lower() in ["принято", "завершено", "проверено"] for h in relevant if h.status):
-                        topic_done = True
-
-                if topic_done:
+                if topic_passed:
                     mod_done += 1
                     a_done += 1
 
-            icon = "✅" if mod_done == mod_total else ("⏳" if is_started or mod_done > 0 else "⭕")
+            # Для иконки модуля проверяем еще и наличие ДЗ, если не все экзамены сданы
+            has_any_hw = any(any(h.topic and h.topic.strip() == t for h in all_hws) for t in topics)
+
+            if mod_done == mod_total and mod_total > 0:
+                icon = "✅"
+            elif is_started or mod_done > 0 or has_any_hw:
+                icon = "⏳"
+            else:
+                icon = "⭕"
             auto_lines.append(f"  {icon} {module_name}")
 
         a_percent = int((a_done / a_total) * 100) if a_total > 0 else 0
@@ -198,8 +201,4 @@ async def get_student_progress_info(student):
     report.append(f"📅 Дата трудоустройства: {safe_date_format(student.employment_date)}")
     report.append(f"💵 Зарплата: {student.salary or 0}")
     report.append(f"💸 Выплачено комиссии: {getattr(student, 'commission_paid', 0)}")
-
-    if student.last_call_date:
-        report.append(f"📞 Последний звонок: {safe_date_format(student.last_call_date)}")
-
     return "\n".join(report)
