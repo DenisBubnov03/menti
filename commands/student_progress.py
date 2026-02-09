@@ -78,9 +78,9 @@ def get_topic_status(student_hws, manual_progress, topic_name):
     if relevant_hws:
         hw_exists = True
         statuses = [hw.status.lower() for hw in relevant_hws if hw.status]
-        if any(s in ["принято", "завершено", "проверено"] for s in statuses):
-            status_icon = "✅"
-        elif any(s in ["ожидает проверки", "на проверке"] for s in statuses):
+        # if any(s in ["принято", "завершено", "проверено"] for s in statuses):
+        #     status_icon = "✅"
+        if any(s in ["ожидает проверки", "на проверке"] for s in statuses):
             status_icon = "⏳"
         elif any(s in ["отклонено", "в доработке", "доработка"] for s in statuses):
             status_icon = "🟡"
