@@ -6,6 +6,7 @@ from datetime import date
 from pathlib import Path
 import psycopg2
 
+from commands.student_progress import request_student_progress, show_student_progress
 from data_base.db import DATABASE_URL
 from setup_logging import setup_logging
 from commands.vpn_commands import start_vpn_config, handle_vpn_telegram
@@ -33,7 +34,6 @@ from commands.homework_mentor import *
 from commands.payment_menti import request_payment, forward_payment, request_commission_payment, \
     forward_commission_payment
 from commands.payment_mentor import reject_payment, show_pending_payments, check_payment_by_id, confirm_payment
-from commands.student_progress import request_student_progress, show_student_progress
 from commands.states import *
 from commands.get_new_topic import get_new_topic_entry, get_new_topic_direction, GET_TOPIC_DIRECTION, \
     my_topics_and_links
@@ -308,13 +308,24 @@ def main():
         },
         fallbacks=[]
     )
-    
+
     student_progress_handler = ConversationHandler(
-        entry_points=[MessageHandler(filters.Regex("^📊 Проверить успеваемость$"), request_student_progress)],
+        entry_points=[
+            # Убрал ^ и $, чтобы пробелы по краям не ломали вход
+            MessageHandler(filters.Regex(r"📊 Проверить успеваемость"), request_student_progress)
+        ],
         states={
-            STUDENT_PROGRESS_WAITING: [MessageHandler(filters.TEXT & ~filters.COMMAND, show_student_progress)]
+            STUDENT_PROGRESS_WAITING: [
+                # Ловим ФИО или username, игнорируем команды
+                MessageHandler(filters.TEXT & ~filters.COMMAND, show_student_progress)
+            ]
         },
-        fallbacks=[]
+        fallbacks=[
+            # Важно: если студент нажмет "Назад", нужно выйти из диалога
+            MessageHandler(filters.Regex(r"🔙 В главное меню"), back_to_main_menu)
+        ],
+        allow_reentry=True,
+        name="student_progress_dialog"  # Помогает при отладке
     )
     
     get_new_topic_handler = ConversationHandler(
