@@ -3,7 +3,7 @@ from decimal import Decimal
 
 from sqlalchemy.orm import Session
 from data_base.models import Student, Salary, CuratorCommission, ManualProgress, \
-    AutoProgress, SalaryKK, Payment  # Добавлены CuratorCommission и прогресс-модели
+    AutoProgress, SalaryKK, Payment, StudentMeta
 from sqlalchemy import inspect, func
 import config
 from typing import Dict, Any
@@ -15,6 +15,26 @@ from typing import Dict, Any
 # Определяем ID директоров (по вашей логике)
 DIRECTOR_ID_MANUAL = 1
 DIRECTOR_ID_AUTO = 3
+
+# Комиссия платёжного канала: вычитается из начислений директорам (Лава топ 12%, ИП 8%, карта/крипта 0%)
+PAYMENT_CHANNEL_COMMISSION = {
+    "lava": 0.12,
+    "ip": 0.08,
+    "card": 0.0,
+    "crypto": 0.0,
+}
+
+
+def get_director_payout_multiplier(session: Session, student_id: int) -> float:
+    """
+    Множитель для начислений директору: (1 - комиссия канала).
+    Данные из student_meta.payment_channel (lava=12%, ip=8%, card/crypto=0%).
+    Если меты нет или канал не задан — 1.0 (без вычета).
+    """
+    meta = session.query(StudentMeta).filter_by(student_id=student_id).first()
+    channel = (getattr(meta, "payment_channel", None) or "").strip().lower()
+    rate = PAYMENT_CHANNEL_COMMISSION.get(channel, 0.0)
+    return round(1.0 - rate, 4)
 
 
 def _get_flow_roles_and_rates(student):
@@ -45,14 +65,12 @@ def _get_flow_roles_and_rates(student):
     }
 
 
-def _get_theme_price_for_flow(manager_instance, mentor_id: int, is_manual: bool) -> float:
+def _get_theme_price_for_flow(manager_instance, session: Session, student: Student, mentor_id: int, is_manual: bool) -> float:
     """Вызывает соответствующую функцию расчета цены темы для куратора/директора."""
     if is_manual:
-        # Calls _calculate_amount_manual
-        price, _ = manager_instance._calculate_amount_manual(mentor_id=mentor_id, amount=1.0)
+        price, _ = manager_instance._calculate_amount_manual(session=session, student=student, mentor_id=mentor_id, amount=1.0)
     else:
-        # Calls _calculate_amount_auto
-        price, _ = manager_instance._calculate_amount_auto(mentor_id=mentor_id, amount=1.0)
+        price, _ = manager_instance._calculate_amount_auto(session=session, student=student, mentor_id=mentor_id, amount=1.0)
     return price
 
 CURATOR_FIXED_SALARY_MANUAL = 9200.0
@@ -68,19 +86,18 @@ class SalaryManager:
 
     # --- СТАРЫЕ МЕТОДЫ (Используются для расчета theme_price) ---
 
-    # ❗ ИСПРАВЛЕНИЕ: Добавлен объект student
-    def _calculate_amount_manual(self, student: Student, mentor_id: int, amount: float) -> tuple[float, str]:
+    # ❗ ИСПРАВЛЕНИЕ: Добавлен объект student и session для вычета комиссии канала оплаты
+    def _calculate_amount_manual(self, session: Session, student: Student, mentor_id: int, amount: float) -> tuple[float, str]:
         """
         Расчет оплаты за 1 тему (ручное направление).
         Основан на фиксированной сумме 9200 руб.
+        Для директора сумма уменьшается на комиссию канала оплаты (student_meta.payment_channel).
         """
         count_calls_total = config.Config.MANUAL_CALLS_TOTAL
 
         # Если это обычный куратор (не Директор)
         if mentor_id != DIRECTOR_ID_MANUAL:
             try:
-                # Берем фиксированную сумму и делим на кол-во тем
-                # calls_price = CURATOR_FIXED_SALARY_MANUAL / count_calls_total
                 calls_price = 1150
             except ZeroDivisionError:
                 calls_price = 0
@@ -97,21 +114,23 @@ class SalaryManager:
             except ZeroDivisionError:
                 calls_price = 0
 
+            # Вычет комиссии платёжного канала только для директора
+            calls_price *= get_director_payout_multiplier(session, student.id)
+
             comment = "Оплата директору за 1 тему (ручное направление)."
             return round(calls_price, 2), comment
 
-    def _calculate_amount_auto(self, student: Student, mentor_id: int, amount: float) -> tuple[float, str]:
+    def _calculate_amount_auto(self, session: Session, student: Student, mentor_id: int, amount: float) -> tuple[float, str]:
         """
         Расчет оплаты за 1 тему (авто направление).
         Основан на фиксированной сумме 17800 руб.
+        Для директора сумма уменьшается на комиссию канала оплаты (student_meta.payment_channel).
         """
         count_calls_total = config.Config.AUTO_CALLS_TOTAL
 
         # Если это обычный куратор (не Директор)
         if mentor_id != DIRECTOR_ID_AUTO:
             try:
-                # Берем фиксированную сумму и делим на кол-во тем
-                # calls_price = CURATOR_FIXED_SALARY_AUTO / count_calls_total
                 calls_price = 2866
             except ZeroDivisionError:
                 calls_price = 0
@@ -120,13 +139,15 @@ class SalaryManager:
             return round(calls_price, 2), comment
 
         else:
-            # Логика для Директора
             course_cost = float(student.total_cost) if student.total_cost else config.Config.FULLSTACK_AUTO_COURSE_COST
             base_rate_dir = config.Config.AUTO_DIR_RESERVE_PERCENT
             try:
                 calls_price = (course_cost * base_rate_dir) / count_calls_total
             except ZeroDivisionError:
                 calls_price = 0
+
+            # Вычет комиссии платёжного канала только для директора
+            calls_price *= get_director_payout_multiplier(session, student.id)
 
             comment = "Оплата директору за 1 тему (авто направление)."
             return round(calls_price, 2), comment
@@ -399,6 +420,9 @@ class SalaryManager:
             # Сохранение
             for plan in planned_payouts:
                 final_amount = round(plan["amount"] * ratio, 2)
+                # Вычет комиссии платёжного канала только для начислений директору
+                if plan["mentor_id"] in [DIRECTOR_ID_MANUAL, DIRECTOR_ID_AUTO]:
+                    final_amount = round(final_amount * get_director_payout_multiplier(session, student_id), 2)
                 if final_amount > 0:
                     final_comment = plan["comment"]
                     if ratio < 1.0:
@@ -462,10 +486,12 @@ class SalaryManager:
 
         results = []
 
+        director_mult = get_director_payout_multiplier(session, student_id)
+
         if is_director_is_mentor:
-            # Случай: 30% в одни руки
+            # Случай: 30% в одни руки (директору — с вычетом комиссии канала)
             percent = 0.30
-            amount = round(payment_amount * percent, 2)
+            amount = round(payment_amount * percent * director_mult, 2)
 
             salary_entry = Salary(
                 payment_id=payment_id,
@@ -477,9 +503,9 @@ class SalaryManager:
             session.add(salary_entry)
             results.append(salary_entry)
         else:
-            # Случай: 20% куратору и 10% директору
+            # Случай: 20% куратору и 10% директору (директору — с вычетом комиссии канала)
             cur_amount = round(payment_amount * 0.20, 2)
-            dir_amount = round(payment_amount * 0.10, 2)
+            dir_amount = round(payment_amount * 0.10 * director_mult, 2)
 
             if curator_id:
                 cur_salary = Salary(
@@ -521,7 +547,8 @@ class SalaryManager:
             return None
 
         commission_sum, commission_comment = self._calculate_amount_manual(
-            student=student,  # ❗ ПЕРЕДАЕМ СТУДЕНТА
+            session=session,
+            student=student,
             mentor_id=mentor_id,
             amount=1.0
         )
@@ -546,7 +573,8 @@ class SalaryManager:
             return None
 
         commission_sum, commission_comment = self._calculate_amount_auto(
-            student=student,  # ❗ ПЕРЕДАЕМ СТУДЕНТА
+            session=session,
+            student=student,
             mentor_id=mentor_id,
             amount=1.0
         )
@@ -603,6 +631,10 @@ class SalaryManager:
             comment = (
                 f"Бонус директору 6% за старт обучения ученика {telegram} по автоматическому направлению"
             )
+
+        # Вычет комиссии платёжного канала для директора
+        director_mult = get_director_payout_multiplier(session, student_id)
+        bonus_amount = round(bonus_amount * director_mult, 2)
 
         # --- Создание записи о комиссии в БД ---
         if bonus_amount > 0:

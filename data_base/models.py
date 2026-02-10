@@ -32,6 +32,7 @@ class Student(Base):
     rules_accepted = Column(Boolean, default=False, server_default="false")
     career_consultant_id = Column(Integer, ForeignKey("career_consultants.id"), nullable=True)
     career_consultant = relationship("CareerConsultant", back_populates="students")
+    meta = relationship("StudentMeta", back_populates="student", uselist=False, lazy="select")
 
 class Mentor(Base):
     __tablename__ = "mentors"
@@ -169,7 +170,7 @@ class AIHomeworkCheck(Base):
     raw_text = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    
+
     # Отношения
     homework = relationship("Homework", backref="ai_checks")
 
@@ -312,3 +313,24 @@ class SalaryKK(Base):
     student = relationship("Student")
     kk = relationship("CareerConsultant")
     payment = relationship("Payment")
+
+class StudentMeta(Base):
+    """
+    Модель мета-данных студентов для реферальной системы и отслеживания источников.
+    """
+    __tablename__ = "student_meta"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    student_id = Column(Integer, ForeignKey("students.id", ondelete="CASCADE"), nullable=False)
+    is_referral = Column(Boolean, default=False, server_default="false")
+    referrer_telegram = Column(String(50), nullable=True)
+    source = Column(String(50), nullable=True)  # ОМ, Ютуб, Инстаграм, Авито, Сайт, Через знакомых, пусто
+    payment_channel = Column(String(20), nullable=True)  # lava, ip, card, crypto — для вычета комиссии из ЗП директоров
+    created_at = Column(Date, nullable=True)
+    ref_paid = Column(Boolean, default=False, server_default="false")  # <--- Добавить это
+
+    # Отношения
+    student = relationship("Student", back_populates="meta")
+
+    def __repr__(self):
+        return f"<StudentMeta(id={self.id}, student_id={self.student_id}, is_referral={self.is_referral}, source={self.source})>"
