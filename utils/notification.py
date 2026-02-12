@@ -192,7 +192,7 @@ async def run_check():
                 [InlineKeyboardButton(text="✅ Активен (2 нед.)", callback_data=f"keep_active:{s_id}")],
                 [InlineKeyboardButton(text="❌ Не учится", callback_data=f"set_inactive:{s_id}")]
             ])
-            await send_smart_message(m_chat_id, f"🔔 <b>{s_name}</b> молчит {days_passed} дн. Подтвердите статус:", kb)
+            await send_smart_message(m_chat_id, f"🔔 <b>{s_name} {s_telegram}</b> молчит {days_passed} дн. Подтвердите статус:", kb)
 
         elif required_stage == 2:
             if SEND_TO_STUDENTS:
