@@ -24,3 +24,24 @@ openpyxl~=3.1.0
 paramiko==3.5.0
 requests~=2.32.4
 protobuf~=6.31.1
+# Google & AI
+google-genai
+
+# Telegram Bots (поскольку используются оба фреймворка)
+python-telegram-bot
+aiogram
+
+# Database
+psycopg2-binary
+sqlalchemy
+
+# Utilities & Config
+python-dotenv
+paramiko
+
+# Documents & Excel
+docx2txt
+openpyxl
+
+# System (для совместимости с 3.12)
+setuptools
